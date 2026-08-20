@@ -2,9 +2,9 @@ name: CI/CD — Prepvio
 
 on:
   push:
-    branches: [main]
+    branches: [main, development]
   pull_request:
-    branches: [main]
+    branches: [main, development]
 
 # Cancel in-progress runs for the same branch to avoid redundant work
 concurrency:
@@ -73,13 +73,13 @@ jobs:
           VITE_ADMIN_API_URL: http://localhost:8000
 
   # ───────────────────────────────────────────────────────────────────────────
-  # 2. Build & Push Docker images (only on push to main, not PRs)
+  # 2. Build & Push Docker images (only on push, not PRs)
   # ───────────────────────────────────────────────────────────────────────────
   docker-build-push:
     name: Docker — ${{ matrix.service }}
     runs-on: ubuntu-latest
     needs: lint-and-build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push'
     permissions:
       contents: read
       packages: write     # needed to push to ghcr.io

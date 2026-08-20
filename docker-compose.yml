@@ -1,5 +1,3 @@
-version: "3.9"
-
 # ─────────────────────────────────────────────────────────────────────────────
 # Prepvio – Docker Compose
 # All four services: backend, admin-backend, frontend, admin-frontend

@@ -1,0 +1,95 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Prepvio – Docker Compose
+# All four services: backend, admin-backend, frontend, admin-frontend
+# Usage:
+#   docker compose up --build          (dev)
+#   docker compose -f docker-compose.yml up -d   (detached)
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  # ── Main Backend ────────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./Backened
+      dockerfile: Dockerfile
+    container_name: prepvio-backend
+    restart: unless-stopped
+    env_file:
+      - ./Backened/.env
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+    ports:
+      - "5000:5000"
+    networks:
+      - prepvio-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:5000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+
+  # ── Admin Backend ────────────────────────────────────────────────────────────
+  admin-backend:
+    build:
+      context: ./AdminBackend
+      dockerfile: Dockerfile
+    container_name: prepvio-admin-backend
+    restart: unless-stopped
+    env_file:
+      - ./AdminBackend/.env
+    environment:
+      NODE_ENV: production
+      PORT: 8000
+    ports:
+      - "8000:8000"
+    networks:
+      - prepvio-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+
+  # ── Main Frontend ────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./Frontend/prepvio
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:5000}
+    container_name: prepvio-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - prepvio-network
+
+  # ── Admin Frontend ───────────────────────────────────────────────────────────
+  admin-frontend:
+    build:
+      context: ./AdminFrontend
+      dockerfile: Dockerfile
+      args:
+        VITE_ADMIN_API_URL: ${VITE_ADMIN_API_URL:-http://localhost:8000}
+    container_name: prepvio-admin-frontend
+    restart: unless-stopped
+    ports:
+      - "3001:80"
+    depends_on:
+      admin-backend:
+        condition: service_healthy
+    networks:
+      - prepvio-network
+
+# ─── Shared network ─────────────────────────────────────────────────────────
+networks:
+  prepvio-network:
+    driver: bridge

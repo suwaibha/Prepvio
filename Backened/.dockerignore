@@ -1,0 +1,9 @@
+node_modules
+npm-debug.log*
+.env
+.env.*
+*.log
+server_error*.log
+tmp_leetcode
+.git
+.github

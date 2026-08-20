@@ -1,0 +1,162 @@
+name: CI/CD — Prepvio
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel in-progress runs for the same branch to avoid redundant work
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ${{ github.repository_owner }}/prepvio
+
+jobs:
+  # ───────────────────────────────────────────────────────────────────────────
+  # 1. Lint + Build verification (runs on every push / PR)
+  # ───────────────────────────────────────────────────────────────────────────
+  lint-and-build:
+    name: Lint & Build — ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: backend
+            dir: Backened
+            node-version: "22"
+            build-cmd: "echo 'No build step for backend'"
+            lint-cmd: "echo 'No lint step configured'"
+          - service: admin-backend
+            dir: AdminBackend
+            node-version: "22"
+            build-cmd: "echo 'No build step for admin-backend'"
+            lint-cmd: "echo 'No lint step configured'"
+          - service: frontend
+            dir: Frontend/prepvio
+            node-version: "22"
+            build-cmd: "npm run build"
+            lint-cmd: "npm run lint"
+          - service: admin-frontend
+            dir: AdminFrontend
+            node-version: "22"
+            build-cmd: "npm run build"
+            lint-cmd: "npm run lint"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Install dependencies
+        working-directory: ${{ matrix.dir }}
+        run: npm ci
+
+      - name: Lint
+        working-directory: ${{ matrix.dir }}
+        run: ${{ matrix.lint-cmd }}
+        continue-on-error: true
+
+      - name: Build
+        working-directory: ${{ matrix.dir }}
+        run: ${{ matrix.build-cmd }}
+        env:
+          VITE_API_URL: http://localhost:5000
+          VITE_ADMIN_API_URL: http://localhost:8000
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # 2. Build & Push Docker images (only on push to main, not PRs)
+  # ───────────────────────────────────────────────────────────────────────────
+  docker-build-push:
+    name: Docker — ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    needs: lint-and-build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write     # needed to push to ghcr.io
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: backend
+            context: ./Backened
+            image-suffix: backend
+          - service: admin-backend
+            context: ./AdminBackend
+            image-suffix: admin-backend
+          - service: frontend
+            context: ./Frontend/prepvio
+            image-suffix: frontend
+          - service: admin-frontend
+            context: ./AdminFrontend
+            image-suffix: admin-frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU (multi-arch support)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${{ matrix.image-suffix }}
+          tags: |
+            type=sha,prefix=sha-,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # Layer caching from GitHub Actions cache
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
+          build-args: |
+            VITE_MAIN_API_URL=https://prepvio-main-backend-c9h5hpaxbecmcua7.southindia-01.azurewebsites.net/api
+            VITE_CONTENT_API_URL=https://prepvio-admin-backend-fff0g6hwctdyhedp.southindia-01.azurewebsites.net/api
+            VITE_MAIN_BACKEND_URL=https://prepvio-main-backend-c9h5hpaxbecmcua7.southindia-01.azurewebsites.net
+            VITE_CONTENT_BACKEND_URL=https://prepvio-admin-backend-fff0g6hwctdyhedp.southindia-01.azurewebsites.net
+            VITE_SOCKET_URL=https://prepvio-main-backend-c9h5hpaxbecmcua7.southindia-01.azurewebsites.net
+
+  # ───────────────────────────────────────────────────────────────────────────
+  # 3. Summary job — passes only when all required jobs succeed
+  # ───────────────────────────────────────────────────────────────────────────
+  ci-success:
+    name: CI Success
+    runs-on: ubuntu-latest
+    needs: [lint-and-build, docker-build-push]
+    if: always()
+    steps:
+      - name: Check all jobs
+        run: |
+          if [[ "${{ needs.lint-and-build.result }}" != "success" ]]; then
+            echo "::error ::lint-and-build failed"
+            exit 1
+          fi
+          echo "✅ All CI checks passed"

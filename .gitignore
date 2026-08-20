@@ -1,0 +1,32 @@
+node_modules
+.env.local
+.env.*.local
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Environment / secrets — NEVER commit real .env files
+.env
+.env.*
+!.env.example
+
+# Build outputs
+**/dist/
+**/build/
+
+# Logs
+*.log
+**/server_error*.log
+
+# OS artefacts
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Debug files
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

@@ -1,0 +1,121 @@
+Analyzing first 15 files:
+- File: 0001-two-sum.json
+  Title: Two Sum
+  Difficulty: Easy
+  FunctionName: twoSum
+  Params: nums, target
+  JS Boilerplate: /**\n * @param {number[]} nums\n * @param {number} target\n * @...
+  Test Cases: [{"rawInput":"nums = [2,7,11,15], target = 9","rawOutput":"[0,1]"},{"rawInput":"nums = [3,2,4], target = 6","rawOutput":"[1,2]"},{"rawInput":"nums = [3,3], target = 6","rawOutput":"[0,1]"}]
+
+- File: 0002-add-two-numbers.json
+  Title: Add Two Numbers
+  Difficulty: Medium
+  FunctionName: addTwoNumbers
+  Params: l1, l2
+  JS Boilerplate: /**\n * Definition for singly-linked list.\n * function ListNo...
+  Test Cases: [{"rawInput":"l1 = [2,4,3], l2 = [5,6,4]","rawOutput":"[7,0,8]"},{"rawInput":"l1 = [0], l2 = [0]","rawOutput":"[0]"},{"rawInput":"l1 = [9,9,9,9,9,9,9], l2 = [9,9,9,9]","rawOutput":"[8,9,9,9,0,0,0,1]"}]
+
+- File: 0003-longest-substring-without-repeating-characters.json
+  Title: Longest Substring Without Repeating Characters
+  Difficulty: Medium
+  FunctionName: lengthOfLongestSubstring
+  Params: s
+  JS Boilerplate: /**\n * @param {string} s\n * @return {number}\n */\nvar lengthO...
+  Test Cases: [{"rawInput":"s = \"abcabcbb\"","rawOutput":"3"},{"rawInput":"s = \"bbbbb\"","rawOutput":"1"},{"rawInput":"s = \"pwwkew\"","rawOutput":"3"}]
+
+- File: 0004-median-of-two-sorted-arrays.json
+  Title: Median of Two Sorted Arrays
+  Difficulty: Hard
+  FunctionName: findMedianSortedArrays
+  Params: nums1, nums2
+  JS Boilerplate: /**\n * @param {number[]} nums1\n * @param {number[]} nums2\n *...
+  Test Cases: [{"rawInput":"nums1 = [1,3], nums2 = [2]","rawOutput":"2.00000"},{"rawInput":"nums1 = [1,2], nums2 = [3,4]","rawOutput":"2.50000"}]
+
+- File: 0005-longest-palindromic-substring.json
+  Title: Longest Palindromic Substring
+  Difficulty: Medium
+  FunctionName: longestPalindrome
+  Params: s
+  JS Boilerplate: /**\n * @param {string} s\n * @return {string}\n */\nvar longest...
+  Test Cases: [{"rawInput":"s = \"babad\"","rawOutput":"\"bab\""},{"rawInput":"s = \"cbbd\"","rawOutput":"\"bb\""}]
+
+- File: 0006-zigzag-conversion.json
+  Title: Zigzag Conversion
+  Difficulty: Medium
+  FunctionName: convert
+  Params: s, numRows
+  JS Boilerplate: /**\n * @param {string} s\n * @param {number} numRows\n * @retu...
+  Test Cases: [{"rawInput":"s = \"PAYPALISHIRING\", numRows = 3","rawOutput":"\"PAHNAPLSIIGYIR\""},{"rawInput":"s = \"PAYPALISHIRING\", numRows = 4","rawOutput":"\"PINALSIGYAHRPI\""},{"rawInput":"s = \"A\", numRows = 1","rawOutput":"\"A\""}]
+
+- File: 0007-reverse-integer.json
+  Title: Reverse Integer
+  Difficulty: Medium
+  FunctionName: reverse
+  Params: x
+  JS Boilerplate: /**\n * @param {number} x\n * @return {number}\n */\nvar reverse...
+  Test Cases: [{"rawInput":"x = 123","rawOutput":"321"},{"rawInput":"x = -123","rawOutput":"-321"},{"rawInput":"x = 120","rawOutput":"21"}]
+
+- File: 0008-string-to-integer-atoi.json
+  Title: String to Integer (atoi)
+  Difficulty: Medium
+  FunctionName: myAtoi
+  Params: s
+  JS Boilerplate: /**\n * @param {string} s\n * @return {number}\n */\nvar myAtoi ...
+  Test Cases: []
+
+- File: 0009-palindrome-number.json
+  Title: Palindrome Number
+  Difficulty: Easy
+  FunctionName: isPalindrome
+  Params: x
+  JS Boilerplate: /**\n * @param {number} x\n * @return {boolean}\n */\nvar isPali...
+  Test Cases: [{"rawInput":"x = 121","rawOutput":"true"},{"rawInput":"x = -121","rawOutput":"false"},{"rawInput":"x = 10","rawOutput":"false"}]
+
+- File: 0010-regular-expression-matching.json
+  Title: Regular Expression Matching
+  Difficulty: Hard
+  FunctionName: isMatch
+  Params: s, p
+  JS Boilerplate: /**\n * @param {string} s\n * @param {string} p\n * @return {bo...
+  Test Cases: [{"rawInput":"s = \"aa\", p = \"a\"","rawOutput":"false"},{"rawInput":"s = \"aa\", p = \"a*\"","rawOutput":"true"},{"rawInput":"s = \"ab\", p = \".*\"","rawOutput":"true"}]
+
+- File: 0011-container-with-most-water.json
+  Title: Container With Most Water
+  Difficulty: Medium
+  FunctionName: maxArea
+  Params: height
+  JS Boilerplate: /**\n * @param {number[]} height\n * @return {number}\n */\nvar ...
+  Test Cases: [{"rawInput":"height = [1,8,6,2,5,4,8,3,7]","rawOutput":"49"},{"rawInput":"height = [1,1]","rawOutput":"1"}]
+
+- File: 0012-integer-to-roman.json
+  Title: Integer to Roman
+  Difficulty: Medium
+  FunctionName: intToRoman
+  Params: num
+  JS Boilerplate: /**\n * @param {number} num\n * @return {string}\n */\nvar intTo...
+  Test Cases: []
+
+- File: 0013-roman-to-integer.json
+  Title: Roman to Integer
+  Difficulty: Easy
+  FunctionName: romanToInt
+  Params: s
+  JS Boilerplate: /**\n * @param {string} s\n * @return {number}\n */\nvar romanTo...
+  Test Cases: [{"rawInput":"s = \"III\"","rawOutput":"3"},{"rawInput":"s = \"LVIII\"","rawOutput":"58"},{"rawInput":"s = \"MCMXCIV\"","rawOutput":"1994"}]
+
+- File: 0014-longest-common-prefix.json
+  Title: Longest Common Prefix
+  Difficulty: Easy
+  FunctionName: longestCommonPrefix
+  Params: strs
+  JS Boilerplate: /**\n * @param {string[]} strs\n * @return {string}\n */\nvar lo...
+  Test Cases: [{"rawInput":"strs = [\"flower\",\"flow\",\"flight\"]","rawOutput":"\"fl\""},{"rawInput":"strs = [\"dog\",\"racecar\",\"car\"]","rawOutput":"\"\""}]
+
+- File: 0015-3sum.json
+  Title: 3Sum
+  Difficulty: Medium
+  FunctionName: threeSum
+  Params: nums
+  JS Boilerplate: /**\n * @param {number[]} nums\n * @return {number[][]}\n */\nva...
+  Test Cases: [{"rawInput":"nums = [-1,0,1,2,-1,-4]","rawOutput":"[[-1,-1,2],[-1,0,1]]"},{"rawInput":"nums = [0,1,1]","rawOutput":"[]"},{"rawInput":"nums = [0,0,0]","rawOutput":"[[0,0,0]]"}]
+

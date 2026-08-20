@@ -1,0 +1,9 @@
+COMPANY: product based company
+ROLES: Software Developer, UI/UX Designer, Product Manager, DevOps Engineer, QA Engineer
+
+COMPANY: service based company
+ROLES: Solution Architecture, Pre-Sales Consultant, IT Support Engineer, CyberSecurity Analyst, DataBase Administrator
+
+COMPANY: startup
+ROLES: AIML Engineer, Full Stack Developer, DevOps Engineer, Growth Engineer, Cyber Security, Product Engineer
+

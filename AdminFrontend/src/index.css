@@ -1,0 +1,72 @@
+@import "tailwindcss";
+
+:root {
+    /* --------------------------------------------------------------------------
+     PREMIUM LIGHT THEME (Indigo / Pink / Teal)
+     -------------------------------------------------------------------------- */
+
+    /* Backgrounds */
+    --bg-primary: #F8F9FC;
+    /* Main background (light blue-gray) */
+    --bg-card: #FFFFFF;
+    /* Card backgrounds (pure white) */
+    --bg-secondary: #F1F5F9;
+    /* Secondary background (slate-50) */
+    --bg-dark: #0F172A;
+    /* Dark sections/buttons (slate-900) */
+    --bg-sidebar: #FFFFFF;
+    /* Sidebar background */
+
+    /* Accent Colors */
+    --accent-primary: #6366F1;
+    /* Indigo-500 (Primary Action) */
+    --accent-hover: #4F46E5;
+    /* Indigo-600 */
+    --accent-light: #EEF2FF;
+    /* Indigo-50 */
+
+    --accent-secondary: #EC4899;
+    /* Pink-500 */
+    --accent-tertiary: #14B8A6;
+    /* Teal-500 */
+
+    /* Semantic Colors */
+    --success: #10b981;
+    /* Emerald-500 */
+    --warning: #f59e0b;
+    /* Amber-500 */
+    --danger: #ef4444;
+    /* Red-500 */
+    --info: #3b82f6;
+    /* Blue-500 */
+
+    /* Colored Shadows */
+    --shadow-indigo: 0 10px 25px -5px rgb(99 102 241 / 0.15);
+    --shadow-pink: 0 10px 25px -5px rgb(236 72 153 / 0.15);
+    --shadow-slate: 0 10px 25px -5px rgb(15 23 42 / 0.1);
+}
+
+/* Base resets */
+body {
+    background-color: var(--bg-primary);
+    color: #0F172A;
+    /* Slate-900 */
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* Global utility enhancements */
+.glass-effect {
+    background: rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+.card-hover {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-hover:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-indigo);
+}

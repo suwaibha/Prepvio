@@ -32,7 +32,7 @@ jobs:
           context: ./Frontend/prepvio
           file: ./Frontend/prepvio/Dockerfile
           push: true
-          tags: afnanahmed321/prepvio-main-frontend:latest
+          tags: ${{ secrets.DOCKER_USERNAME }}/prepvio-main-frontend:latest
           build-args: |
             VITE_MAIN_API_URL=https://prepvio-main-backend-c9h5hpaxbecmcua7.southindia-01.azurewebsites.net/api
             VITE_CONTENT_API_URL=https://prepvio-admin-backend-fff0g6hwctdyhedp.southindia-01.azurewebsites.net/api

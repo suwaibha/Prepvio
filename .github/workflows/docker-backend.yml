@@ -29,4 +29,4 @@ jobs:
           context: ./Backened
           file: ./Backened/Dockerfile
           push: true
-          tags: afnanahmed321/prepvio-main-back:latest
+          tags: ${{ secrets.DOCKER_USERNAME }}/prepvio-main-back:latest

@@ -13,7 +13,7 @@ RUN npm ci
 COPY . .
 
 # Build arguments for environment variables at build time
-ARG VITE_MAIN_API_URL=https://prepvio-main-back-892382638275.europe-west1.run.app
+ARG VITE_MAIN_API_URL=https://prepvio-main-back-892382638275.europe-west1.run.app/api
 ENV VITE_MAIN_API_URL=$VITE_MAIN_API_URL
 
 ARG VITE_CONTENT_API_URL=https://prepvio-admin-back-892382638275.europe-west1.run.app/api

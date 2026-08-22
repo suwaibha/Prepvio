@@ -138,11 +138,11 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,mode=max,scope=${{ matrix.service }}
           build-args: |
-            VITE_MAIN_API_URL=https://prepvio-main-backend-c9h5hpaxbecmcua7.southindia-01.azurewebsites.net/api
-            VITE_CONTENT_API_URL=https://prepvio-admin-backend-fff0g6hwctdyhedp.southindia-01.azurewebsites.net/api
-            VITE_MAIN_BACKEND_URL=https://prepvio-main-backend-c9h5hpaxbecmcua7.southindia-01.azurewebsites.net
-            VITE_CONTENT_BACKEND_URL=https://prepvio-admin-backend-fff0g6hwctdyhedp.southindia-01.azurewebsites.net
-            VITE_SOCKET_URL=https://prepvio-main-backend-c9h5hpaxbecmcua7.southindia-01.azurewebsites.net
+            VITE_MAIN_API_URL=https://prepvio-main-back-892382638275.europe-west1.run.app/api
+            VITE_CONTENT_API_URL=https://prepvio-admin-back-892382638275.europe-west1.run.app/api
+            VITE_MAIN_BACKEND_URL=https://prepvio-main-back-892382638275.europe-west1.run.app
+            VITE_CONTENT_BACKEND_URL=https://prepvio-admin-back-892382638275.europe-west1.run.app
+            VITE_SOCKET_URL=https://prepvio-main-back-892382638275.europe-west1.run.app
 
   # ───────────────────────────────────────────────────────────────────────────
   # 3. Summary job — passes only when all required jobs succeed

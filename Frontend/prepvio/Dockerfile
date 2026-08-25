@@ -1,5 +1,6 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Stage 1: Build the Vite/React app
+# Rebuild: 2026-08-23 — Cloud Run URL migration
 # ─────────────────────────────────────────────────────────────────────────────
 FROM node:20-alpine AS builder
 
@@ -13,19 +14,19 @@ RUN npm ci
 COPY . .
 
 # Build arguments for environment variables at build time
-ARG VITE_MAIN_API_URL=https://prepvio-main-backend-c9h5hpaxbecmcua7.southindia-01.azurewebsites.net/api
+ARG VITE_MAIN_API_URL=https://prepvio-main-back-892382638275.europe-west1.run.app/api
 ENV VITE_MAIN_API_URL=$VITE_MAIN_API_URL
 
-ARG VITE_CONTENT_API_URL=https://prepvio-admin-backend-fff0g6hwctdyhedp.southindia-01.azurewebsites.net/api
+ARG VITE_CONTENT_API_URL=https://prepvio-admin-back-892382638275.europe-west1.run.app/api
 ENV VITE_CONTENT_API_URL=$VITE_CONTENT_API_URL
 
-ARG VITE_MAIN_BACKEND_URL=https://prepvio-main-backend-c9h5hpaxbecmcua7.southindia-01.azurewebsites.net
+ARG VITE_MAIN_BACKEND_URL=https://prepvio-main-back-892382638275.europe-west1.run.app
 ENV VITE_MAIN_BACKEND_URL=$VITE_MAIN_BACKEND_URL
 
-ARG VITE_CONTENT_BACKEND_URL=https://prepvio-admin-backend-fff0g6hwctdyhedp.southindia-01.azurewebsites.net
+ARG VITE_CONTENT_BACKEND_URL=https://prepvio-admin-back-892382638275.europe-west1.run.app
 ENV VITE_CONTENT_BACKEND_URL=$VITE_CONTENT_BACKEND_URL
 
-ARG VITE_SOCKET_URL=https://prepvio-main-backend-c9h5hpaxbecmcua7.southindia-01.azurewebsites.net
+ARG VITE_SOCKET_URL=https://prepvio-main-back-892382638275.europe-west1.run.app
 ENV VITE_SOCKET_URL=$VITE_SOCKET_URL
 
 ARG VITE_RAZORPAY_KEY_ID=rzp_test_StfkcaSa1klBVr

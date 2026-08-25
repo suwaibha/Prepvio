@@ -16,6 +16,10 @@ import { deduplicateCourseProgress } from "../Utils/courseHelper.js";
 
 export const checkAuth = async (req, res) => {
   try {
+    if (!req.userId) {
+      return res.status(200).json({ success: true, user: null });
+    }
+
     // ✅ Handle Hardcoded Admin Session
     if (req.userId === "admin") {
       return res.status(200).json({
@@ -33,15 +37,13 @@ export const checkAuth = async (req, res) => {
     const user = await User.findById(req.userId).select("-password");
 
     if (!user) {
-      return res
-        .status(400)
-        .json({ success: false, message: "User not found" });
+      return res.status(200).json({ success: true, user: null });
     }
 
     res.status(200).json({ success: true, user });
   } catch (error) {
     console.log("Error in checkAuth", error);
-    res.status(400).json({ success: false, message: error.message });
+    res.status(200).json({ success: false, user: null });
   }
 };
 

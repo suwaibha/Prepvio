@@ -55,7 +55,7 @@ export const verifyToken = async (req, res, next) => {
       return next();
     }
 
-    const user = await User.findById(decoded.id).select("_id");
+    const user = await User.findById(userId).select("_id");
 
     if (!user) {
       return res.status(401).json({
@@ -117,7 +117,7 @@ export const verifyTokenOptional = async (req, res, next) => {
       return next();
     }
 
-    const user = await User.findById(decoded.id).select("_id");
+    const user = await User.findById(userId).select("_id");
     if (user) {
       req.userId = user._id;
     }

@@ -10,13 +10,11 @@ import {
   checkAuth,
   googleAuthCallback,
 } from "../Controllers/Authcontrollers.js";
-import { verifyToken } from "../middleware/verifytoken.js";
-
-
+import { verifyToken, verifyTokenOptional } from "../middleware/verifytoken.js";
 
 const router = express.Router();
 
-router.get("/check-auth", verifyToken, checkAuth);
+router.get("/check-auth", verifyTokenOptional, checkAuth);
 
 router.post("/signup",signup);
 router.post("/login",login);
@@ -33,6 +31,7 @@ router.get(
   "/google",
   passport.authenticate("google", {
     scope: ["profile", "email"],
+    prompt: "select_account",
   })
 );
 

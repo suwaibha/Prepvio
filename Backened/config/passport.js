@@ -27,11 +27,13 @@ passport.use(
             password: crypto.randomBytes(32).toString("hex"), // dummy
           });
           user.isNewUser = true; // ✅ Mark as new user for welcome notification
-        }
-
-        // 🚫 Prevent password login for Google users
-        if (user.authProvider !== "google") {
-          return done(null, false);
+        } else {
+          // Link Google ID and verify user if they sign in via Google
+          if (!user.googleId) {
+            user.googleId = profile.id;
+          }
+          user.isVerified = true;
+          await user.save();
         }
 
         return done(null, user);

@@ -39,6 +39,9 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
+# Set production environment for correct cookie/CORS behavior
+ENV NODE_ENV=production
+
 # Copy node_modules from deps stage
 COPY --from=deps /app/node_modules ./node_modules
 

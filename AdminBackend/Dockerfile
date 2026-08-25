@@ -17,6 +17,9 @@ RUN apk add --no-cache dumb-init
 
 WORKDIR /app
 
+# Set production environment for correct cookie/CORS behavior
+ENV NODE_ENV=production
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 

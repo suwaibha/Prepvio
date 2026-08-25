@@ -24,7 +24,7 @@ const PORT = process.env.PORT || 8000;
 
 // Middleware
 app.use(express.json());
-const allowedOrigins = (process.env.FRONTEND_ORIGINS || "https://prepvio-main-frontend-892382638275.europe-west1.run.app,http://localhost:5173,http://localhost:5174")
+const allowedOrigins = (process.env.FRONTEND_ORIGINS || "https://prepvioai.com,https://www.prepvioai.com,https://prepvio-main-frontend-892382638275.europe-west1.run.app,http://localhost:5173,http://localhost:5174")
   .split(",")
   .map((origin) => origin.trim())
   .filter(Boolean);

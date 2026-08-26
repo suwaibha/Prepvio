@@ -52,7 +52,7 @@ COPY . .
 RUN groupadd -g 1001 nodejs && useradd -u 1001 -g nodejs -s /bin/bash -m prepvio
 USER prepvio
 
-EXPOSE 5000
+EXPOSE 8080
 
 # Use dumb-init to handle PID 1 signals correctly
 ENTRYPOINT ["dumb-init", "--"]

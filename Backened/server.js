@@ -105,15 +105,19 @@ app.use((req, res, next) => {
 });
 
 // --- 3. MongoDB Connection ---
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => {
-    console.log("✅ MongoDB Connected");
-    resumeUnfinishedQuizJobs().catch(err => {
-      console.error("[Quiz Pipeline] Failed to check/resume unfinished quiz jobs:", err);
-    });
-  })
-  .catch((err) => console.error("❌ MongoDB Error:", err));
+if (process.env.MONGO_URI) {
+  mongoose
+    .connect(process.env.MONGO_URI)
+    .then(() => {
+      console.log("✅ MongoDB Connected");
+      resumeUnfinishedQuizJobs().catch(err => {
+        console.error("[Quiz Pipeline] Failed to check/resume unfinished quiz jobs:", err);
+      });
+    })
+    .catch((err) => console.error("❌ MongoDB Error:", err));
+} else {
+  console.warn("⚠️ MONGO_URI is not set. Database connection skipped.");
+}
 
 // --- 4. Cloudflare R2 Configuration ---
 const r2Client = new S3Client({
@@ -505,12 +509,12 @@ const initializeSocketServer = () => {
 export { io };
 
 // --- 11. Start Server ---
-const PORT = Number(process.env.PORT || 5000);
+const PORT = Number(process.env.PORT || 8080);
 
 const startServer = (port) => {
-  const listener = initializeSocketServer().listen(port, () => {
+  const listener = initializeSocketServer().listen(port, "0.0.0.0", () => {
     ConnectDB();
-    console.log(`🚀 Server running on http://localhost:${port}`);
+    console.log(`🚀 Server running on port ${port}`);
     console.log("✅ MongoDB Connected via ConnectDB()");
     if (process.env.R2_BUCKET_NAME) {
       console.log(`📁 R2 Bucket: ${process.env.R2_BUCKET_NAME}`);

@@ -53,16 +53,19 @@ const allowedOrigins = (process.env.FRONTEND_ORIGINS || "https://prepvioai.com,h
 
 // --- 1. CORS Configuration ---
 // Explicit preflight handler — ensures Cloud Run / proxies don't swallow OPTIONS
-app.options("*", (req, res) => {
-  const origin = req.headers.origin;
-  if (allowedOrigins.includes(origin)) {
-    res.set("Access-Control-Allow-Origin", origin);
-    res.set("Access-Control-Allow-Methods", "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS");
-    res.set("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Requested-With");
-    res.set("Access-Control-Allow-Credentials", "true");
-    res.set("Access-Control-Max-Age", "86400");
+app.use((req, res, next) => {
+  if (req.method === "OPTIONS") {
+    const origin = req.headers.origin;
+    if (allowedOrigins.includes(origin)) {
+      res.set("Access-Control-Allow-Origin", origin);
+      res.set("Access-Control-Allow-Methods", "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS");
+      res.set("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Requested-With");
+      res.set("Access-Control-Allow-Credentials", "true");
+      res.set("Access-Control-Max-Age", "86400");
+    }
+    return res.status(204).end();
   }
-  res.status(204).end();
+  next();
 });
 
 app.use(cors({

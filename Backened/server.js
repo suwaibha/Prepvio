@@ -52,9 +52,25 @@ const allowedOrigins = (process.env.FRONTEND_ORIGINS || "https://prepvioai.com,h
   .filter(Boolean);
 
 // --- 1. CORS Configuration ---
+// Explicit preflight handler — ensures Cloud Run / proxies don't swallow OPTIONS
+app.options("*", (req, res) => {
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.set("Access-Control-Allow-Origin", origin);
+    res.set("Access-Control-Allow-Methods", "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type,Authorization,X-Requested-With");
+    res.set("Access-Control-Allow-Credentials", "true");
+    res.set("Access-Control-Max-Age", "86400");
+  }
+  res.status(204).end();
+});
+
 app.use(cors({
   origin: allowedOrigins,
-  credentials: true
+  credentials: true,
+  methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+  maxAge: 86400
 }));
 
 // --- 2. Middleware ---

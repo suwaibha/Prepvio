@@ -536,69 +536,67 @@ export async function resumeUnfinishedQuizJobs() {
     console.log(`[Quiz Pipeline] Found unfinished jobs for ${videoMap.size} videos. Resuming in background...`);
 
     for (const [videoId, docs] of videoMap.entries()) {
-      (async () => {
-        try {
-          console.log(`[Quiz Pipeline] Resuming job for video ${videoId}...`);
-          const url = `https://www.youtube.com/watch?v=${videoId}`;
-          const transcript = await TranscriptService.getTranscript(url);
-          const chunks = mergeTranscript(transcript);
-          const topicTranscripts = await TopicSegmentationService.segmentTranscript(transcript, chunks);
+      try {
+        console.log(`[Quiz Pipeline] Resuming job for video ${videoId}...`);
+        const url = `https://www.youtube.com/watch?v=${videoId}`;
+        const transcript = await TranscriptService.getTranscript(url);
+        const chunks = mergeTranscript(transcript);
+        const topicTranscripts = await TopicSegmentationService.segmentTranscript(transcript, chunks);
 
-          const targets = topicTranscripts.filter(t => 
-            docs.some(d => d.topic === t.topic)
-          );
+        const targets = topicTranscripts.filter(t => 
+          docs.some(d => d.topic === t.topic)
+        );
 
-          // Queue the resumed topics with corrected duration thresholds
-          targets.forEach((topic, index) => {
-            const startSeconds = topic.start.split(":").reduce((acc, time) => (60 * acc) + parseFloat(time), 0);
-            const endSeconds = topic.end.split(":").reduce((acc, time) => (60 * acc) + parseFloat(time), 0);
-            const durationSeconds = endSeconds - startSeconds;
+        // Queue the resumed topics with corrected duration thresholds
+        targets.forEach((topic, index) => {
+          const startSeconds = topic.start.split(":").reduce((acc, time) => (60 * acc) + parseFloat(time), 0);
+          const endSeconds = topic.end.split(":").reduce((acc, time) => (60 * acc) + parseFloat(time), 0);
+          const durationSeconds = endSeconds - startSeconds;
 
-            // < 30s → SKIP (not READY with empty questions!)
-            if (durationSeconds < 30) {
-              DbService.updateStatus(videoId, topic.topic, "SKIPPED", {
-                skipReason: `INSUFFICIENT_DURATION_${Math.round(durationSeconds)}s`
-              });
-              return;
-            }
-
-            // Determine question count: 30-90s=1, 90-300s=2, 300s+=3
-            let targetNumQuestions = 1;
-            if (durationSeconds >= 30 && durationSeconds < 90) {
-              targetNumQuestions = 1;
-            } else if (durationSeconds >= 90 && durationSeconds < 300) {
-              targetNumQuestions = 2;
-            } else {
-              targetNumQuestions = 3;
-            }
-
-            const promptEstimate = `Generate exactly ${targetNumQuestions} questions for ${topic.topic}... ${topic.transcript}`;
-            const estimatedTokens = QuizGenerationService.estimateTokens(promptEstimate) + 500;
-
-            // Transition: -> QUEUED
-            DbService.updateStatus(videoId, topic.topic, "QUEUED");
-
-            queueManager.push({
-              fn: async () => {
-                return await QuizGenerationService.generateQuizForTopic(topic.topic, topic.transcript, targetNumQuestions);
-              },
-              videoId,
-              topic: topic.topic,
-              priority: index,
-              estimatedTokens,
-              resolve: () => {},
-              reject: (err) => {
-                console.error(`[Quiz Pipeline] Resume job rejected for "${topic.topic}":`, err.message);
-              }
+          // < 30s → SKIP (not READY with empty questions!)
+          if (durationSeconds < 30) {
+            DbService.updateStatus(videoId, topic.topic, "SKIPPED", {
+              skipReason: `INSUFFICIENT_DURATION_${Math.round(durationSeconds)}s`
             });
-          });
+            return;
+          }
 
-          // Start workers
-          workerManager.start();
-        } catch (err) {
-          console.error(`[Quiz Pipeline] Failed to resume quiz job for video ${videoId}:`, err.message);
-        }
-      })();
+          // Determine question count: 30-90s=1, 90-300s=2, 300s+=3
+          let targetNumQuestions = 1;
+          if (durationSeconds >= 30 && durationSeconds < 90) {
+            targetNumQuestions = 1;
+          } else if (durationSeconds >= 90 && durationSeconds < 300) {
+            targetNumQuestions = 2;
+          } else {
+            targetNumQuestions = 3;
+          }
+
+          const promptEstimate = `Generate exactly ${targetNumQuestions} questions for ${topic.topic}... ${topic.transcript}`;
+          const estimatedTokens = QuizGenerationService.estimateTokens(promptEstimate) + 500;
+
+          // Transition: -> QUEUED
+          DbService.updateStatus(videoId, topic.topic, "QUEUED");
+
+          queueManager.push({
+            fn: async () => {
+              return await QuizGenerationService.generateQuizForTopic(topic.topic, topic.transcript, targetNumQuestions);
+            },
+            videoId,
+            topic: topic.topic,
+            priority: index,
+            estimatedTokens,
+            resolve: () => {},
+            reject: (err) => {
+              console.error(`[Quiz Pipeline] Resume job rejected for "${topic.topic}":`, err.message);
+            }
+          });
+        });
+
+        // Start workers
+        workerManager.start();
+      } catch (err) {
+        console.error(`[Quiz Pipeline] Failed to resume quiz job for video ${videoId}:`, err.message);
+      }
     }
   } catch (err) {
     console.error("[Quiz Pipeline] Error during resume check:", err.message);

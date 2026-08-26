@@ -407,6 +407,16 @@ app.use("/api/questions", questionRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/promo", promoCodeRoutes);
 
+// --- Global Error Handler ---
+app.use((err, req, res, next) => {
+  console.error("🔥 Global Error Handler caught an error:", err);
+  res.status(500).json({
+    success: false,
+    message: err.message || "Internal Server Error",
+    stack: process.env.NODE_ENV === "development" ? err.stack : undefined,
+  });
+});
+
 
 
 

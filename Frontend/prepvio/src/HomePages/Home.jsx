@@ -446,6 +446,7 @@ const PricingSection = () => {
   const [paymentData, setPaymentData] = useState(null);
   const [orderDetails, setOrderDetails] = useState(null);
   const [isCalculatingPrice, setIsCalculatingPrice] = useState(false);
+  const [paymentError, setPaymentError] = useState("");
   const { refreshUser, isAuthenticated, user } = useAuthStore();
 
   // ✅ Fetch current subscription
@@ -519,18 +520,26 @@ const PricingSection = () => {
   // ✅ Razorpay Payment Handler
   const handlePaymentWithPlan = async (planId) => {
     if (!isAuthenticated) {
-      setModalType('login'); // ✅ CHANGED
-      setShowAuthModal(true); // ✅ CHANGED
+      setModalType('login');
+      setShowAuthModal(true);
       return;
     }
 
     if (!user?.isVerified) {
-      setModalType('verify'); // ✅ CHANGED
-      setShowAuthModal(true); // ✅ CHANGED
+      setModalType('verify');
+      setShowAuthModal(true);
+      return;
+    }
+
+    // Guard: Razorpay SDK must be loaded
+    if (typeof window.Razorpay === "undefined") {
+      console.error("[PAYMENT] Razorpay SDK not loaded — checkout.js script missing or blocked");
+      setPaymentError("Payment service is not available. Please refresh the page and try again.");
       return;
     }
 
     setIsProcessing(true);
+    setPaymentError("");
 
     try {
       const requestData = { planId };
@@ -538,10 +547,11 @@ const PricingSection = () => {
         requestData.promoCode = promoCode;
       }
 
-      const { data } = await mainApi.post(
-        "/payment/create-order",
-        requestData
-      );
+      console.log("[PAYMENT] Starting payment", { planId, hasPromo: Boolean(requestData.promoCode) });
+
+      const { data } = await mainApi.post("/payment/create-order", requestData);
+
+      console.log("[PAYMENT] Order created successfully", { orderId: data.orderId, amount: data.amount });
 
       const options = {
         key: import.meta.env.VITE_RAZORPAY_KEY_ID,
@@ -552,18 +562,12 @@ const PricingSection = () => {
         description: `${data.planName} - ${data.interviews} Interviews`,
         handler: async function (response) {
           try {
-            const verifyRes = await mainApi.post(
-              "/payment/verify",
-              response
-            );
+            const verifyRes = await mainApi.post("/payment/verify", response);
 
             if (verifyRes.data.success) {
               await refreshUser();
 
-              const res = await mainApi.get(
-                "/payment/interview-status"
-              );
-
+              const res = await mainApi.get("/payment/interview-status");
               if (res.data.subscription) {
                 setCurrentPlan(res.data.subscription);
               }
@@ -573,22 +577,21 @@ const PricingSection = () => {
                 interviews: verifyRes.data.interviews.remaining,
               });
               setPaymentSuccess(true);
+              setPaymentError("");
             }
           } catch (err) {
-            console.error("Verification error:", err);
-            alert("Payment verification failed. Please contact support.");
+            console.error("[PAYMENT] Verification error:", err);
+            setPaymentError("Payment completed but verification failed. Please contact support with your payment ID.");
           } finally {
             setIsProcessing(false);
             setSelectedPlan(null);
           }
         },
         prefill: {
-          name: "Test User",
-          email: "test@example.com",
+          name: user?.name || "",
+          email: user?.email || "",
         },
-        theme: {
-          color: "#1A1A1A",
-        },
+        theme: { color: "#1A1A1A" },
         modal: {
           ondismiss: function () {
             setIsProcessing(false);
@@ -601,8 +604,8 @@ const PricingSection = () => {
       rzp.open();
 
     } catch (err) {
-      console.error("Payment error:", err);
-      alert("Payment initiation failed. Please try again.");
+      console.error("[PAYMENT] Order creation failed:", err);
+      setPaymentError(err.response?.data?.message || "We couldn't start your payment. Please try again.");
       setIsProcessing(false);
       setSelectedPlan(null);
     }
@@ -643,8 +646,8 @@ const PricingSection = () => {
       });
       setShowPromoInput(true);
     } catch (err) {
-      console.error("Failed to fetch order details:", err);
-      alert("Failed to calculate plan price. Please try again.");
+      console.error("[PAYMENT] Failed to fetch order details:", err);
+      setPaymentError(err.response?.data?.message || "Failed to calculate plan price. Please try again.");
       setSelectedPlan(null);
     } finally {
       setIsCalculatingPrice(false);
@@ -687,6 +690,21 @@ const PricingSection = () => {
 
 
         {/* --- PRICING CARDS --- */}
+        {/* Error Banner */}
+        {paymentError && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="max-w-7xl mx-auto mb-4 bg-red-50 border border-red-200 text-red-700 rounded-2xl px-5 py-4 flex items-start gap-3 text-sm font-medium"
+          >
+            <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+            <span>{paymentError}</span>
+            <button onClick={() => setPaymentError("")} className="ml-auto text-red-400 hover:text-red-600 cursor-pointer">
+              <X className="w-4 h-4" />
+            </button>
+          </motion.div>
+        )}
+
         <motion.div
           id="pricing-cards"
           variants={containerVariants}

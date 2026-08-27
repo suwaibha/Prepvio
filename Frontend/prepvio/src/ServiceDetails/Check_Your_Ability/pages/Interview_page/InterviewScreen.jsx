@@ -2265,24 +2265,24 @@ In the meantime, if you have any follow-up questions, please don't hesitate to r
     location,
   ]);
 
-  const { warning: identityWarning, verify: verifyIdentity } = useInterviewIdentityVerification({
+  const identityVerification = useInterviewIdentityVerification({
     videoRef: userVideoRef,
     sessionId: location.state?.sessionId,
     enabled: cameraAllowed && !isPreview && !isIdentityTerminated,
-    onWarning: (message, verification) => {
+    onWarning: ({ message, terminated }) => {
       textToSpeech(message);
-      if (verification.terminated) setIsIdentityTerminated(true);
+      if (terminated) setIsIdentityTerminated(true);
     },
-    onTerminated: () => {
-      window.setTimeout(() => navigate("/dashboard/interview-analysis", {
-        replace: true,
-        state: { terminated: true, terminationRemark: "Identity verification failed after three warnings." },
-      }), 3500);
+    onTerminated: ({ reason }) => {
+      setIsIdentityTerminated(true);
     },
   });
+  const { verifyIdentity } = identityVerification;
 
   useEffect(() => {
-    if (cameraAllowed && !isPreview) verifyIdentity("round_start");
+    if (cameraAllowed && !isPreview && typeof verifyIdentity === "function") {
+      verifyIdentity("round_start");
+    }
   }, [cameraAllowed, interviewStage, isPreview, verifyIdentity]);
 
   useEffect(() => {
@@ -2507,15 +2507,36 @@ Key points:
                 />
               )}
 
-              {identityWarning && (
-                <div className="absolute bottom-6 left-6 right-6 z-20 rounded-xl border border-amber-300 bg-amber-50/95 px-4 py-3 text-sm font-semibold text-amber-900 shadow-lg">
-                  {identityWarning}
+              {/* Identity Verification Status Badge */}
+              {identityVerification.status === "VERIFIED" && (
+                <div className="absolute top-6 left-6 z-20 bg-black/60 backdrop-blur-md border border-white/10 px-3.5 py-2 rounded-2xl flex items-center gap-2.5 shadow-lg">
+                  <span className="h-2.5 w-2.5 rounded-full bg-green-400 animate-pulse shadow-[0_0_8px_rgba(74,222,128,0.6)]" />
+                  <div className="text-xs font-bold text-white flex items-center gap-1">
+                    User verified ✓
+                  </div>
+                </div>
+              )}
+
+              {/* Identity Warning Banner */}
+              {(identityVerification.status === "WARNING" || identityVerification.status === "CAMERA_ERROR") && (
+                <div className="absolute top-6 left-6 z-20 bg-black/80 backdrop-blur-md border border-amber-500/40 px-4 py-2.5 rounded-2xl flex items-center gap-3 shadow-xl animate-pulse">
+                  <span className="h-3 w-3 rounded-full bg-amber-400" />
+                  <div>
+                    <div className="text-xs font-bold text-amber-300">
+                      {identityVerification.status === "CAMERA_ERROR"
+                        ? "🔴 Camera Disconnected"
+                        : `🟠 Identity Check Warning ${identityVerification.warningCount}/3`}
+                    </div>
+                    <div className="text-[11px] text-gray-200 font-medium mt-0.5">
+                      {identityVerification.warningMessage || "Keep your face visible in camera"}
+                    </div>
+                  </div>
                 </div>
               )}
 
               {/* AI Speaking Indicator */}
               {isSpeaking && (
-                <div className="absolute top-6 left-6 bg-gradient-to-r from-[#D4F478]/20 to-emerald-500/20 backdrop-blur-lg text-white px-4 py-2 rounded-full text-sm font-medium border border-[#D4F478]/30">
+                <div className="absolute top-20 left-6 bg-gradient-to-r from-[#D4F478]/20 to-emerald-500/20 backdrop-blur-lg text-white px-4 py-2 rounded-full text-sm font-medium border border-[#D4F478]/30">
                   <div className="flex items-center gap-2">
                     <div className="w-2 h-2 bg-[#D4F478] rounded-full animate-pulse"></div>
                     Sira is speaking…
@@ -2799,6 +2820,34 @@ Key points:
         isUploading={isLoadingAI}
         uploadStatus={uploadStatus}
       />
+
+      {/* Identity Verification Failed Termination Modal */}
+      {(identityVerification.terminated || isIdentityTerminated) && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white rounded-3xl p-8 shadow-2xl border border-red-100 text-center animate-fade-in">
+            <div className="w-16 h-16 mx-auto rounded-full bg-red-100 flex items-center justify-center text-red-600 mb-4 shadow-inner">
+              <AlertCircle size={36} />
+            </div>
+            <h2 className="text-2xl font-black text-gray-900">🔴 Interview Ended</h2>
+            <p className="text-sm font-bold text-red-700 mt-2">Identity verification failed.</p>
+            <p className="text-xs text-gray-600 mt-2">
+              The enrolled user could not be continuously verified during the session.
+            </p>
+            <div className="mt-4 p-3.5 bg-red-50 rounded-2xl border border-red-200 text-xs font-semibold text-red-800">
+              Reason: {identityVerification.terminationReason || identityVerification.warningMessage || "User could not be verified."}
+            </div>
+            <p className="text-xs text-gray-400 mt-4">
+              Your interview has been ended for security and proctoring integrity reasons.
+            </p>
+            <button
+              onClick={() => navigate("/dashboard", { replace: true })}
+              className="mt-6 w-full py-3.5 rounded-full bg-red-600 text-white font-bold text-sm hover:bg-red-700 transition-all shadow-lg active:scale-95 cursor-pointer"
+            >
+              Return to Dashboard
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

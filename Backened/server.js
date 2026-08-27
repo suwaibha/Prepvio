@@ -18,6 +18,7 @@ import { resumeUnfinishedQuizJobs } from "./services/quizGenerator.js";
 import companyRoutes from "./check-your-ability/routes/companyRoutes.js";
 import interviewRoutes from "./check-your-ability/routes/interviewRoutes.js";
 import faceRoutes from "./check-your-ability/routes/faceRoutes.js";
+import { preloadFaceModels } from "./check-your-ability/services/faceRecognitionService.js";
 import Authroute from "./Routes/Authroute.js";
 import interviewSessionRoutes from "./check-your-ability/routes/interviewSessionRoutes.js";
 import userRoutes from "./Routes/userRoutes.js";
@@ -516,6 +517,7 @@ const startServer = (port) => {
     ConnectDB();
     console.log(`🚀 Server running on port ${port}`);
     console.log("✅ MongoDB Connected via ConnectDB()");
+    preloadFaceModels().catch((err) => console.error("❌ Failed to preload face models:", err));
     if (process.env.R2_BUCKET_NAME) {
       console.log(`📁 R2 Bucket: ${process.env.R2_BUCKET_NAME}`);
     }

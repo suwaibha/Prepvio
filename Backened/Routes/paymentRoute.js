@@ -5,7 +5,7 @@ import { PLANS } from "../config/plans.js";
 import { User } from "../Models/User.js";
 import { verifyToken } from "../middleware/verifytoken.js";
 import Notification from "../Models/Notification.js";
-import { io } from "../server.js";
+// NOTE: io is accessed via req.io (attached by server.js middleware) to avoid circular imports
 
 const router = express.Router();
 
@@ -308,8 +308,10 @@ router.post("/verify", verifyToken, async (req, res) => {
         }
       });
 
-      // Emit real-time notification
-      io.to(userId.toString()).emit("NEW_NOTIFICATION", newNotification);
+      // Emit real-time notification via req.io (avoids circular import from server.js)
+      if (req.io) {
+        req.io.to(userId.toString()).emit("NEW_NOTIFICATION", newNotification);
+      }
 
     } catch (notifErr) {
       console.error("Error sending purchase notification:", notifErr);

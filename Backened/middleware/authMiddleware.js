@@ -48,7 +48,7 @@ export const verifyToken = async (req, res, next) => {
     }
 
     // 4️⃣ FETCH USER FROM DB
-    const user = await User.findById(decoded.id).select("-password");
+    const user = await User.findById(userId).select("-password");
 
     if (!user) {
       return res.status(401).json({

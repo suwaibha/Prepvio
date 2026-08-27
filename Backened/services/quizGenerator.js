@@ -281,6 +281,24 @@ export async function retryWithBackoff(fn, maxRetries = 5) {
                           error.message?.includes("429") ||
                           error.status >= 500;
 
+      // --- 401 INVALID API KEY: do not retry, log actionable info ---
+      const isAuthError = error.status === 401 ||
+        error?.error?.code === 'invalid_api_key' ||
+        error?.message?.includes('invalid_api_key') ||
+        error?.message?.includes('Invalid API Key');
+
+      if (isAuthError) {
+        const key = process.env.GROQ_API_KEY;
+        console.error(
+          '[Quiz Pipeline] ❌ GROQ API key is invalid (401 Unauthorized).\n' +
+          '  → Action required: update GROQ_API_KEY in Backened/.env\n' +
+          `  → Key exists in env: ${Boolean(key)}\n` +
+          `  → Key prefix: ${key ? key.slice(0, 7) + '...' : 'N/A'}\n` +
+          '  → Get a valid key at: https://console.groq.com'
+        );
+        throw error; // Do not retry — retrying with a bad key wastes time
+      }
+
       if (!isRateLimit || attempt === maxRetries) {
         throw error;
       }
@@ -517,6 +535,18 @@ import { TopicSegmentationService } from "./topicSegmentationService.js";
 
 export async function resumeUnfinishedQuizJobs() {
   try {
+    // --- Pre-flight: validate GROQ_API_KEY before touching the DB ---
+    const groqKey = process.env.GROQ_API_KEY;
+    if (!groqKey) {
+      console.error(
+        '[Quiz Pipeline] ⚠️  Skipping quiz resume: GROQ_API_KEY is not set.\n' +
+        '  → Action required: add GROQ_API_KEY=<your_key> to Backened/.env\n' +
+        '  → Get a key at: https://console.groq.com'
+      );
+      return;
+    }
+    console.log(`[Quiz Pipeline] GROQ_API_KEY present (prefix: ${groqKey.slice(0, 7)}...)`);
+
     console.log("[Quiz Pipeline] Checking for unfinished quiz generation jobs...");
     const unfinishedQuizzes = await DbService.findUnfinishedQuizzes();
 

@@ -2,80 +2,276 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { mainApi } from "../utils/apiClient";
 
 const frameFromVideo = (video) => {
-  if (!video?.videoWidth) return null;
+  if (!video || !video.videoWidth || !video.videoHeight) return null;
   const canvas = document.createElement("canvas");
-  canvas.width = video.videoWidth;
-  canvas.height = video.videoHeight;
-  canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
-  return canvas.toDataURL("image/jpeg", 0.85);
+  canvas.width = 320;
+  canvas.height = 240;
+  const ctx = canvas.getContext("2d");
+
+  // Mirror horizontally to match the mirrored camera perspective
+  ctx.translate(canvas.width, 0);
+  ctx.scale(-1, 1);
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  return canvas.toDataURL("image/jpeg", 0.75);
 };
 
-export const useInterviewIdentityVerification = ({ videoRef, sessionId, enabled, onWarning, onTerminated }) => {
-  const [warning, setWarning] = useState("");
-  const verifyingRef = useRef(false);
-  const hasReceivedCameraStreamRef = useRef(false);
-  const warningRef = useRef(onWarning);
-  const terminateRef = useRef(onTerminated);
-  warningRef.current = onWarning;
-  terminateRef.current = onTerminated;
+export const useInterviewIdentityVerification = ({
+  videoRef,
+  sessionId,
+  enabled,
+  onWarning,
+  onTerminated,
+}) => {
+  // Verification status: "VERIFYING" | "VERIFIED" | "WARNING" | "FAILED" | "CAMERA_ERROR"
+  const [verificationState, setVerificationState] = useState({
+    status: "VERIFYING",
+    isVerified: false,
+    matchScore: null,
+    livenessPassed: false,
+    warningCount: 0,
+    warningMessage: "",
+    violationReason: "",
+    terminated: false,
+    terminationReason: "",
+  });
 
-  const verify = useCallback(async (trigger) => {
-    if (!enabled || !sessionId || verifyingRef.current) return;
+  const FAILURE_THRESHOLD_MS = 2200; // Continuous failure duration required before warning strike
+  const GRACE_PERIOD_MS = 10000;     // 10-second post-warning cooldown/grace period
+
+  const verifyingRef = useRef(false);
+  const warningCountRef = useRef(0);
+  const violationStartTimeRef = useRef(null);
+  const lastWarningTimeRef = useRef(0); // Timestamp when last warning was generated
+  const onWarningRef = useRef(onWarning);
+  const onTerminatedRef = useRef(onTerminated);
+
+  onWarningRef.current = onWarning;
+  onTerminatedRef.current = onTerminated;
+
+  const performVerification = useCallback(async () => {
+    if (!enabled || verifyingRef.current || verificationState.terminated) return;
+
+    const now = Date.now();
     const video = videoRef.current;
     const track = video?.srcObject?.getVideoTracks?.()[0];
-    const frame = frameFromVideo(video);
-    if (track?.readyState === "live") hasReceivedCameraStreamRef.current = true;
-    // The camera has permission but has not produced its first frame yet.
-    // Do not count that normal startup state as an identity failure.
-    if (!frame && track?.readyState === "live" && track.enabled) return;
-    if (!track && !hasReceivedCameraStreamRef.current) return;
-    verifyingRef.current = true;
-    try {
-      const response = await mainApi.post("/face/verify", { frame, sessionId, trigger });
-      if (!response.data.verified) {
-        setWarning(response.data.terminated ? "Interview ended: identity verification failed three times." : response.data.warningCount ? `${response.data.message} Warning ${response.data.warningCount} of 3.` : response.data.message);
-        if (response.data.terminated) terminateRef.current?.();
-      } else {
-        setWarning("");
-      }
-    } catch (error) {
-      const verification = error.response?.data;
-      // Face absence, darkness, multiple faces, and camera loss are expected
-      // verification failures returned as 422—not transport failures.
-      if (verification?.verified === false) {
-        setWarning(verification.terminated
-          ? "Interview ended: identity verification failed three times."
-          : verification.warningCount ? `${verification.message} Warning ${verification.warningCount} of 3.` : verification.message);
-        if (verification.terminated) terminateRef.current?.();
+    const isCameraLive = track && track.enabled && track.readyState === "live";
+
+    // 1. Check Camera Hardware Disconnection
+    if (!isCameraLive) {
+      const timeSinceLastWarning = now - lastWarningTimeRef.current;
+      const inGracePeriod = lastWarningTimeRef.current > 0 && timeSinceLastWarning < GRACE_PERIOD_MS;
+      const violationMsg = "Camera disconnected. Camera access is required to continue the interview.";
+
+      if (inGracePeriod) {
+        violationStartTimeRef.current = null;
+        setVerificationState((prev) => ({
+          ...prev,
+          status: "CAMERA_ERROR",
+          isVerified: false,
+          warningMessage: `${violationMsg} (Warning ${warningCountRef.current} of 3)`,
+          violationReason: "Camera disconnected",
+        }));
         return;
       }
-      setWarning(verification?.message || "Camera verification could not be completed. Keep your face visible.");
-    } finally { verifyingRef.current = false; }
-  }, [enabled, sessionId, videoRef]);
 
+      if (!violationStartTimeRef.current) {
+        violationStartTimeRef.current = now;
+      }
+
+      const violationDurationMs = now - violationStartTimeRef.current;
+
+      if (violationDurationMs >= FAILURE_THRESHOLD_MS) {
+        warningCountRef.current += 1;
+        const currentStrike = warningCountRef.current;
+        const isTerminated = currentStrike >= 3;
+
+        lastWarningTimeRef.current = now;
+        violationStartTimeRef.current = null;
+
+        setVerificationState({
+          status: isTerminated ? "FAILED" : "CAMERA_ERROR",
+          isVerified: false,
+          matchScore: null,
+          livenessPassed: false,
+          warningCount: currentStrike,
+          warningMessage: `${violationMsg} (Warning ${currentStrike} of 3)`,
+          violationReason: "Camera disconnected",
+          terminated: isTerminated,
+          terminationReason: isTerminated ? "Camera disconnected" : "",
+        });
+
+        onWarningRef.current?.({
+          warningCount: currentStrike,
+          reason: "Camera disconnected",
+          message: `Camera disconnected. Warning ${currentStrike} of 3.`,
+          terminated: isTerminated,
+        });
+
+        if (isTerminated) {
+          onTerminatedRef.current?.({
+            reason: "Camera disconnected",
+            message: "Identity verification failed after 3 warnings.",
+          });
+        }
+      }
+      return;
+    }
+
+    const frame = frameFromVideo(video);
+    if (!frame) return;
+
+    verifyingRef.current = true;
+
+    try {
+      const response = await mainApi.post("/face/verify-live", {
+        frame,
+        sessionId,
+      });
+
+      const {
+        status,
+        faceDetected,
+        faceCount,
+        identityMatch,
+        matchScore,
+        livenessPassed,
+        reason,
+      } = response.data;
+
+      const checkTime = Date.now();
+
+      // -----------------------------------------------------------------
+      // SUCCESS CASE: Exact matching enrolled user present
+      // -----------------------------------------------------------------
+      if (status === "matched" && identityMatch) {
+        // User is verified: recover from any ongoing violation and clear grace period
+        violationStartTimeRef.current = null;
+        lastWarningTimeRef.current = 0;
+
+        setVerificationState((prev) => ({
+          ...prev,
+          status: "VERIFIED",
+          isVerified: true,
+          matchScore: matchScore || 94,
+          livenessPassed: Boolean(livenessPassed),
+          warningMessage: "",
+          violationReason: "",
+        }));
+
+        return;
+      }
+
+      // -----------------------------------------------------------------
+      // VIOLATION HANDLING: No Face, Mismatch, or Multiple Faces
+      // -----------------------------------------------------------------
+      const violationType = status; // "no_face" | "mismatch" | "multiple_faces"
+      const violationMsg =
+        reason ||
+        (violationType === "no_face"
+          ? "User is not in camera."
+          : violationType === "multiple_faces"
+          ? "Multiple people detected. Please ensure only the enrolled user is visible."
+          : "User match not found.");
+
+      const timeSinceLastWarning = checkTime - lastWarningTimeRef.current;
+      const inGracePeriod = lastWarningTimeRef.current > 0 && timeSinceLastWarning < GRACE_PERIOD_MS;
+
+      // During the 10-second post-warning grace period:
+      // Continue polling every 2.5s to detect if user returns, but DO NOT increment warnings or start failure timer.
+      if (inGracePeriod) {
+        violationStartTimeRef.current = null;
+
+        setVerificationState((prev) => ({
+          ...prev,
+          status: "WARNING",
+          isVerified: false,
+          matchScore: matchScore || null,
+          livenessPassed: false,
+          warningMessage: `${violationMsg} (Warning ${warningCountRef.current} of 3)`,
+          violationReason: violationMsg,
+        }));
+        return;
+      }
+
+      // Outside grace period (or grace period expired):
+      // Require the full continuous failure threshold (2.2s) before generating next strike.
+      if (!violationStartTimeRef.current) {
+        violationStartTimeRef.current = checkTime;
+      }
+
+      const violationDurationMs = checkTime - violationStartTimeRef.current;
+
+      if (violationDurationMs >= FAILURE_THRESHOLD_MS) {
+        warningCountRef.current += 1;
+        const currentStrike = warningCountRef.current;
+        const isTerminated = currentStrike >= 3;
+
+        // Start new 10-second grace period after this warning
+        lastWarningTimeRef.current = checkTime;
+        // Reset violation start timer so NEXT warning requires full continuous threshold after grace period
+        violationStartTimeRef.current = null;
+
+        setVerificationState({
+          status: isTerminated ? "FAILED" : "WARNING",
+          isVerified: false,
+          matchScore: matchScore || null,
+          livenessPassed: false,
+          warningCount: currentStrike,
+          warningMessage: `${violationMsg} (Warning ${currentStrike} of 3)`,
+          violationReason: violationMsg,
+          terminated: isTerminated,
+          terminationReason: isTerminated ? violationMsg : "",
+        });
+
+        onWarningRef.current?.({
+          warningCount: currentStrike,
+          reason: violationMsg,
+          message: `${violationMsg} Warning ${currentStrike} of 3.`,
+          terminated: isTerminated,
+        });
+
+        if (isTerminated) {
+          onTerminatedRef.current?.({
+            reason: violationMsg,
+            message: "Identity verification failed after 3 warnings.",
+          });
+        }
+      } else {
+        // Still accumulating continuous failure time towards next strike
+        setVerificationState((prev) => ({
+          ...prev,
+          status: prev.warningCount > 0 ? "WARNING" : prev.status,
+          isVerified: false,
+          warningMessage: `${violationMsg}${prev.warningCount > 0 ? ` (Warning ${prev.warningCount} of 3)` : ""}`,
+          violationReason: violationMsg,
+        }));
+      }
+    } catch (err) {
+      console.error("Live identity verification request error:", err);
+    } finally {
+      verifyingRef.current = false;
+    }
+  }, [enabled, sessionId, videoRef, verificationState.terminated]);
+
+  // Run continuous verification every 2.5 seconds throughout the interview
   useEffect(() => {
-    if (!enabled || !sessionId) return undefined;
-    // Check every five seconds so an absent/covered/dark face follows the same
-    // warning policy as an unavailable camera.
-    const interval = window.setInterval(() => verify("periodic"), 5000);
-    // Camera loss is time-sensitive: warn after 5 seconds, warn again after
-    // another 5 seconds, and let the backend terminate on the third failure.
-    const cameraHealthInterval = window.setInterval(() => {
-      const track = videoRef.current?.srcObject?.getVideoTracks?.()[0];
-      const cameraUnavailable = !track || !track.enabled || track.readyState !== "live";
-      if (cameraUnavailable) verify("camera_unavailable");
-    }, 5000);
-    const onVisibility = () => { if (document.visibilityState === "visible") verify("tab_return"); };
-    window.addEventListener("focus", onVisibility);
-    document.addEventListener("visibilitychange", onVisibility);
-    verify("interview_start");
-    return () => {
-      window.clearInterval(interval);
-      window.clearInterval(cameraHealthInterval);
-      window.removeEventListener("focus", onVisibility);
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
-  }, [enabled, sessionId, verify]);
+    if (!enabled || verificationState.terminated) return undefined;
 
-  return { warning, verify };
+    // Initial check on load
+    performVerification();
+
+    const intervalId = window.setInterval(() => {
+      performVerification();
+    }, 2500);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [enabled, performVerification, verificationState.terminated]);
+
+  return {
+    ...verificationState,
+    verifyIdentity: performVerification,
+  };
 };

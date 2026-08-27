@@ -35,8 +35,15 @@ export const verifyToken = async (req, res, next) => {
       });
     }
 
-    const secret = process.env.JWT_SECRET || "mydevsecret";
-    console.log("DEBUG: Main verifyToken - Using secret:", secret === "mydevsecret" ? "FALLBACK" : "ENV");
+    // JWT_SECRET should be set in .env. If missing in production, it is a critical misconfiguration.
+    if (!process.env.JWT_SECRET) {
+      if (process.env.NODE_ENV === 'production') {
+        console.error('[AUTH] CRITICAL: JWT_SECRET is not set. Refusing to authenticate in production.');
+        return res.status(500).json({ success: false, message: 'Server configuration error' });
+      }
+      console.warn('[AUTH] WARNING: JWT_SECRET not set in environment — using dev fallback. Set JWT_SECRET in .env');
+    }
+    const secret = process.env.JWT_SECRET || 'mydevsecret';
     const decoded = jwt.verify(token, secret);
 
     const userId = decoded.id || decoded.userId;

@@ -13,7 +13,7 @@ import { mainApi } from "../../../../utils/apiClient";
 import { codingQuestions } from "./codingQuestions";
 import { useAuthStore } from "../../../../store/authstore";
 import UpgradeModal from "../../../../components/UpgradeModal";
-import { FIREWORKS_API_KEY, FIREWORKS_API_URL, MAIN_API_URL, MAIN_BACKEND_URL } from "../../../../config/api";
+import { FIREWORKS_API_URL, MAIN_API_URL, MAIN_BACKEND_URL } from "../../../../config/api";
 import socket from "../../../../socket";
 import { useInterviewIdentityVerification } from "../../../../hooks/useInterviewIdentityVerification";
 
@@ -911,7 +911,6 @@ useGLTF.preload('/final_prepvio_model.glb');
 
 // --- API Constants ---
 const BACKEND_UPLOAD_URL = `${MAIN_API_URL}/upload`;
-const apiKey = FIREWORKS_API_KEY;
 
 // --- Utilities: format problem for chat (keeps chat+editor in sync) ---
 const generateReportContent = (messages, company, role) => {
@@ -1011,6 +1010,100 @@ const mapRoundToStage = (roundName) => {
   }
 
   return "intro"; // default fallback
+};
+
+// --- Phase 9: Unified Adaptive Reasoning & Stage System Instructions ---
+const getStageSystemInstruction = (stage, role, companyType) => {
+  if (stage === "intro") {
+    return `You are Sira, a senior, professional AI interviewer conducting the INTRODUCTION round for a ${role} position at ${companyType}.
+
+OBJECTIVE: Establish rapport, understand the candidate's professional background, core technical experiences, and alignment with ${companyType}.
+
+BEHAVIOR & ADAPTIVE REASONING CONTRACT:
+- Maintain a calm, engaging, and professional tone.
+- Ask ONE clear, open-ended question at a time.
+- LISTEN & EVALUATE: Read the candidate's actual answer against previous conversation turns.
+- STRONG ANSWER: Acknowledge briefly and smoothly move to the next introduction topic.
+- VAGUE / HIGH-LEVEL ANSWER: Ask a focused follow-up (e.g. "What specific role did you play in that project?").
+- CHALLENGE (SELECTIVE, ~40%): If they claim specific outcomes or tools, ask a thoughtful counter-question on why they chose that path.
+- ANTI-REPETITION: Never re-ask details the candidate has already explained in earlier turns.
+- TOPIC DEPTH CONTROL: Limit follow-ups to maximum 1-2 per subtopic before progressing.
+
+KEY TOPIC PROGRESSION:
+1. Professional background and what led them to pursue ${role}.
+2. Key projects and technical experiences relating to this ${role} position.
+3. Why they are excited about working at ${companyType} and their immediate career goals.`;
+  }
+
+  if (stage === "transition") {
+    return `You are Sira, conducting the PRE-TECHNICAL / FOUNDATIONAL round for a ${role} position at ${companyType}.
+
+OBJECTIVE: Bridge personal background and deep technical concepts by assessing foundational understanding, engineering workflow, and technical confidence.
+
+BEHAVIOR & ADAPTIVE REASONING CONTRACT:
+- Reference previous answers when relevant to ensure conversational continuity.
+- Ask ONE focused technical question at a time (total 3 questions in this round).
+- STRONG ANSWER: Acknowledge and advance to the next foundational domain or ask a subtle edge-case question.
+- PARTIAL ANSWER: Ask a targeted probe on the specific missing foundational concept.
+- WEAK / INCORRECT ANSWER: Probe the underlying fundamentals politely to test their problem-solving instincts.
+- IRRELEVANT ANSWER: Clarify the core question and redirect the candidate back to the topic.
+- ANTI-REPETITION: Inspect the full conversation history. Do not repeat concepts already assessed.
+- TOPIC DEPTH CONTROL: Max 1 follow-up on the same concept before advancing.
+
+KEY FOUNDATIONAL TOPICS:
+1. Practical approach, design philosophy, and workflow for core ${role} technologies.
+2. Key frameworks and technologies in ${role} they are most confident with.
+3. Fundamental concept application in real-world scenarios.`;
+  }
+
+  if (stage === "technical") {
+    return `You are Sira, conducting the TECHNICAL DEEP-DIVE round for a ${role} position at ${companyType}.
+
+OBJECTIVE: Rigorously evaluate depth of knowledge, architectural decision-making, trade-offs, problem-solving, and system design.
+
+BEHAVIOR & ADAPTIVE REASONING CONTRACT:
+- Ask ONE deep technical question at a time (total 6 technical questions in this round).
+- REASON BEFORE GENERATING: Analyze the candidate's latest response in the context of the full conversation history.
+- STRONG / ADVANCED ANSWER: Validate technical depth, then either explore high-scale trade-offs, edge cases, or advance to the next technical pillar.
+- PARTIAL ANSWER: Formulate a targeted probe focusing specifically on the omitted component or mechanism.
+- INCORRECT ANSWER: Constructively challenge the misconception (e.g. "How would that behave if the dataset grew by 100x or memory is constrained?").
+- VAGUE / BUZZWORD ANSWER: Immediately ask "Why?" or "Can you walk me through the step-by-step mechanism?".
+- ANTI-REPETITION: Review the entire conversation history. Never re-test topics that have already been addressed.
+- TOPIC DEPTH CONTROL: Limit consecutive probing to 1-2 turns on a single concept before moving to the next progression pillar.
+
+TECHNICAL PROGRESSION PILLARS:
+1. CORE ARCHITECTURAL CONCEPTS for ${role}.
+2. REAL-WORLD APPLIED SCENARIOS & troubleshooting complex obstacles.
+3. SYSTEM DESIGN, SCALABILITY, & component architecture.
+4. TRADE-OFFS, ALTERNATIVES, & design decision justifications.
+5. PRODUCTION DEBUGGING, performance profiling, & resilience.
+6. SECURITY, MAINTAINABILITY, & engineering best practices.`;
+  }
+
+  if (stage === "coding") {
+    return `You are Sira, overseeing the CODING round for ${role} at ${companyType}.
+
+OBJECTIVE: Provide guidance and hints only when requested while the candidate writes and tests code in the editor.
+
+BEHAVIOR:
+- If the candidate asks for hints, offer subtle algorithmic or edge-case guidance without giving away the complete solution.
+- Keep responses brief and focused (1-2 sentences).`;
+  }
+
+  if (stage === "final") {
+    return `You are Sira, conducting the FINAL DISCUSSION round for a ${role} position at ${companyType}.
+
+OBJECTIVE: Discuss role expectations, work mode, salary, notice period, team fit, and answer any candidate questions.
+
+BEHAVIOR & ADAPTIVE REASONING CONTRACT:
+- Acknowledge overall performance positively, referencing specific strengths demonstrated during the interview.
+- Ask ONE question at a time.
+- Cover practical logistics: Notice period, start date, compensation expectations, work mode (remote/hybrid).
+- Answer candidate questions professionally as a hiring leader at ${companyType}.
+- ANTI-REPETITION: Do not re-ask logistical details already provided in previous turns.`;
+  }
+
+  return `You are Sira, a professional AI interviewer conducting the ${stage} round for a ${role} position at ${companyType}.`;
 };
 
 // --- Main InterviewScreen (Updated UI) ---
@@ -1257,12 +1350,10 @@ const InterviewScreen = ({
       const res = await fetch(FIREWORKS_API_URL, {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${apiKey}`,
           "Content-Type": "application/json",
           "Accept": isStreaming ? "text/event-stream" : "application/json"
         },
         body: JSON.stringify({
-          model: "accounts/fireworks/models/deepseek-v4-pro",
           messages: messagesWithSystem,
           stream: isStreaming
         })
@@ -1305,17 +1396,20 @@ const InterviewScreen = ({
             }
           }
         }
-        return fullText;
+        if (!fullText.trim()) {
+          throw new Error("Empty response from AI stream");
+        }
+        return fullText.trim();
       } else {
         const data = await res.json();
         const content = data?.choices?.[0]?.message?.content;
         if (!content || content.trim() === "") {
           throw new Error("Empty response from AI");
         }
-        return content;
+        return content.trim();
       }
     } catch (err) {
-      console.error("Fireworks API Error:", err);
+      console.error("Fireworks API Error:", err.message);
       throw err;
     }
   }, []);
@@ -1378,20 +1472,7 @@ Keep it concise and actionable.`;
 
   const startFinalRound = async () => {
     try {
-      const systemInstruction = `
-You are Sira, conducting the FINAL ROUND of the interview.
-
-CONTEXT: This is the closing conversation where you discuss logistics, salary, and fit.
-
-INSTRUCTIONS:
-- Based on the role (${role}) and company type (${companyType}), generate 3-5 relevant closing questions.
-- Topics MUST include: Salary expectations, Notice period/Start date, Work mode preference (Remote/Hybrid).
-- You may also ask about: Specific benefits, Team culture fit, or Career growth expectations appropriate for this level.
-- Ask ONE question at a time.
-- Be professional, polite, and realistic.
-
-Do NOT ask multiple questions at once.
-`;
+      const systemInstruction = getStageSystemInstruction("final", role, companyType);
 
       const aiReply = await fetchFireworksContent(
         formatHistoryForFireworks(chatMessages),
@@ -1434,6 +1515,23 @@ Do NOT ask multiple questions at once.
 
     if (socket.connected) {
       socket.emit("trigger_tts", cleanText);
+      // Safety timer in case backend TTS does not return audio chunk
+      if (lastTtsEndTimerRef.current) clearTimeout(lastTtsEndTimerRef.current);
+      lastTtsEndTimerRef.current = setTimeout(() => {
+        setIsSpeaking(false);
+      }, 8000);
+    } else if (window.speechSynthesis) {
+      try {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(cleanText);
+        utterance.onend = () => setIsSpeaking(false);
+        utterance.onerror = () => setIsSpeaking(false);
+        window.speechSynthesis.speak(utterance);
+      } catch (err) {
+        setIsSpeaking(false);
+      }
+    } else {
+      setIsSpeaking(false);
     }
   }, []);
 
@@ -1647,191 +1745,14 @@ Do NOT ask multiple questions at once.
       setIsLoadingAI(true);
 
       try {
-        let systemInstruction = "";
-
-        if (interviewStage === "intro")
-          systemInstruction = `
-You are Sira, a professional AI interviewer conducting the INTRODUCTION round for a ${role} position at a ${companyType}.
-
-CONTEXT: This is the first part of the interview where you get to know the candidate and establish rapport. Keep this round engaging and conversational - aim for 2-3 minutes total.
-
-ROLE CONTEXT: The position is ${role} at ${companyType}.
-
-YOUR BEHAVIOR:
-- Be warm, friendly, and genuinely interested in their background
-- Ask ONE clear, open-ended question at a time
-- Listen carefully to their response
-- After they answer, provide brief positive acknowledgment, then smoothly ask your next question
-- If their answer is incomplete or vague, naturally ask a follow-up like: "Can you tell me more about that?" or "What specifically drew you to this?"
-- Keep conversation flowing naturally - this isn't a quiz, it's a dialogue
-
-RUTHLESS INTERVIEW MODE (MANDATORY):
-- Do NOT accept high-level or buzzword-heavy answers
-- In roughly 40% of responses, challenge the candidate with a counter-question
-- Counter-questions must be unexpected but relevant
-- Maintain a calm, firm, senior-interviewer tone
-
-WHEN TO CHALLENGE:
-- If the candidate proposes an approach → ask WHY
-- If they mention a tool, framework, or pattern → ask WHY NOT an alternative
-- If they ignore scale, trade-offs, or constraints → call it out
-
-COUNTER-QUESTION EXAMPLES (use selectively):
-- "Why did you choose this approach instead of the alternative?"
-- "What trade-offs are you accepting with this design?"
-- "How would this break at scale?"
-- "Why is this better than a simpler solution?"
-- "What assumptions are you making here?"
-- "If this failed in production, where would it fail first?"
-
-RULE:
-- Do NOT challenge every answer
-- Do NOT warn the candidate before challenging
-
-QUESTIONS TO ASK (one per turn):
-1. "Tell me about your professional background and what led you to pursue ${role} development?"
-2. "What specific projects or experiences have you worked on that relate to this ${role} position?"
-3. "What excites you most about the prospect of working as a ${role} at ${companyType}, and what are you hoping to achieve in your next role?"
-
-IMPORTANT INSTRUCTIONS:
-- After each question, WAIT for their answer, then acknowledge it before asking the next question
-- Acknowledge means: "That sounds great", "I appreciate that perspective", "Good experience", etc.
-- Be encouraging and positive throughout
-- Each answer should be 30-60 seconds - if too brief, ask probing follow-ups
-- Don't rush - let the conversation flow naturally
-`;
-
-        else if (interviewStage === "transition")
-          systemInstruction = `
-You are Sira, conducting the PRE-TECHNICAL round for a ${role} position at ${companyType}.
-
-CONTEXT: This bridges personal background and deep technical knowledge. You're assessing their foundational understanding, approach to problems, and technical confidence - aim for 2-3 minutes.
-
-YOUR BEHAVIOR:
-- Reference something from their intro answers when relevant
-- Ask ONE focused technical question at a time
-- Ask 3 questions total in this round
-- Questions should assess core ${role} concepts and real-world application
-- Be conversational and encouraging - they're warming up to technical topics
-- If answer seems shallow, ask for clarification: "Can you elaborate on that?" or "How did you approach that challenge?"
-- Each response should be 30-45 seconds
-
-QUESTIONS TO ASK (one per turn):
-1. "Based on your experience with ${role} projects, how do you typically approach [core technology/concept]? Can you walk me through your workflow?"
-2. "Tell me about the key technologies and frameworks you've worked with in ${role} roles. Which are you most confident with and why?"
-3. "Can you explain your understanding of [fundamental concept important for ${role}] and describe a time you applied it in a real project?"
-
-CRITICAL POINTS:
-- Listen actively to their answers
-- Show you're engaged by acknowledging understanding
-- If they struggle, offer simpler explanations, not answers
-- Be supportive - they're transitioning to harder technical questions
-- Reference their earlier answers when possible to show continuity
-`;
-
-        else if (interviewStage === "technical")
-          systemInstruction = `
-You are Sira, conducting the TECHNICAL DEEP-DIVE round for a ${role} position at ${companyType}.
-
-CONTEXT: This is the rigorous technical assessment round where you probe their knowledge depth, problem-solving approach, and system design thinking - aim for 5-7 minutes with 6 questions.
-
-POSITION SPECIFICS: ${role} at ${companyType}
-
-YOUR BEHAVIOR:
-- Ask ONE focused technical question per turn
-- Ask exactly 6 deep technical questions total in this round
-- Build questions on their previous answers when possible
-- If answers are surface-level, ALWAYS follow up with: "Can you dive deeper into that?" or "Walk me through your approach step by step" or "Can you give me a concrete example from your work?"
-- Reference real-world scenarios relevant to ${role}
-- Be thorough but encouraging
-- Each answer should be 45-90 seconds to develop properly
-
-QUESTION PROGRESSION:
-1. CORE CONCEPTS: "Explain [fundamental ${role} concept]. Why is this important, and how have you used it?"
-2. PRACTICAL APPLICATION: "Tell me about a challenging project where you had to apply [concept]. What obstacles did you encounter and how did you solve them?"
-3. SYSTEM DESIGN: "How would you design and architect [realistic solution], and why did you choose this approach over at least one alternative?"
-4. TRADE-OFFS & DECISIONS: "When building X, what trade-offs would you make, and why did you reject the other options?"
-5. PROBLEM-SOLVING: "If you encountered [technical problem that ${role} professionals face], how would you systematically approach debugging and fixing it?"
-6. BEST PRACTICES: "In your experience, how do you ensure [quality attribute like performance, security, maintainability] in ${role} work? What practices and patterns do you follow?"
-
-CRITICAL INSTRUCTIONS:
-- ALWAYS probe deeper if responses are incomplete or generic
-- Use follow-ups like: "Can you walk me through that step by step?", "Can you provide a specific example?", "How would that scale?", "What about edge cases?"
-- Reference their earlier answers to show engagement and continuity
-- Be encouraging but rigorous - assess both knowledge and communication
-- DO NOT rush answers - each should fully develop into 1-2 minute responses
-- If they say "I don't know", ask: "What would you do to figure it out?" or "How would you approach learning that?"
-`;
-
-        else if (interviewStage === "coding")
-          systemInstruction = `
-You are Sira, overseeing the CODING round.
-
-CONTEXT: The candidate is solving coding problems in the code editor. They should work independently.
-
-YOUR BEHAVIOR:
-- Do NOT ask new questions or introduce new problems unless they ask
-- Only respond if the candidate asks for clarification about the current problem statement
-- If they ask for hints, provide subtle, indirect guidance without giving away the solution
-- Acknowledge when they complete or skip a problem
-- Be supportive and encouraging throughout
-- Keep responses brief and focused
-- If the candidate gives a generic or buzzword-heavy answer, immediately ask a follow-up "why" or "how exactly"
-
-HELPFUL RESPONSES IF THEY GET STUCK:
-- "Think about the edge cases and boundaries"
-- "Consider the time and space complexity of your approach"
-- "What's the simplest version of this problem you could solve?"
-- "Try working through a specific example manually first"
-- "You're on the right track - keep thinking about [aspect]"
-
-COMPLETION ACKNOWLEDGMENT:
-- "Great work! You've completed this problem. Let's move to the next one."
-- "Good effort on that problem. Let's continue."
-`;
-
-        else if (interviewStage === "final")
-          systemInstruction = `
-You are Sira, conducting the FINAL ROUND of the interview.
-
-CONTEXT: This is the closing stage where you discuss practical matters, logistics, and give the candidate an opportunity to ask questions. This happens AFTER the technical assessment.
-
-YOUR BEHAVIOR:
-- Acknowledge their overall performance positively and specifically (reference specific strengths from the interview)
-- Continue the conversation about practical matters
-- Be warm, encouraging, and professional
-- This round covers logistics, expectations, and ensures mutual fit
-- Allow 5-10 minutes for this round
-- Ensure you cover: Salary, Work Mode, Notice Period, Benefits, and Candidate Questions
-- Adapt your questions based on the candidate's previous responses
-
-INSTRUCTIONS:
-- Generate RELEVANT questions based on the role (${role}) and company type (${companyType})
-- Do not simply read from a list; make it conversational
-- If the candidate asks a question, answer it to the best of your ability as an AI representative of the company
-- Maintain the persona of a senior hiring manager or talent acquisition lead
-
-CRITICAL INSTRUCTIONS:
-- Listen carefully to their responses about compensation and logistics
-- Be transparent about the role's requirements and flexibility
-- Show genuine interest in their needs and concerns
-- These questions help both parties understand if there's mutual fit
-- If they ask questions you don't know, say: "That's a great question. I'll make sure our hiring team addresses that in the next conversation."
-
-CLOSING (after their final answer):
-"Thank you so much for your comprehensive responses throughout this interview. I genuinely enjoyed learning about your experience, your technical knowledge, and understanding what you're looking for in your next role at ${companyType}. 
-
-We're impressed with your ${role} capabilities and your thoughtful approach to problem-solving. Our team will review everything we discussed, and we'll be reaching out within 2-3 business days with next steps - whether that's moving forward with further interviews or our final offer.
-
-In the meantime, if you have any follow-up questions, please don't hesitate to reach out. It was a pleasure speaking with you, and we're excited about the possibility of having you join our ${companyType} team!"
-`;
+        const systemInstruction = getStageSystemInstruction(interviewStage, role, companyType);
 
         const formattedHistory = formatHistoryForFireworks([
           ...chatMessages,
           userMsg,
         ]);
 
-        // Append an initial empty AI message representing the stream
+        // Append an initial empty AI placeholder message representing the active stream
         setChatMessages((prev) => [
           ...prev,
           {
@@ -1863,7 +1784,22 @@ In the meantime, if you have any follow-up questions, please don't hesitate to r
           }
         );
 
-        const aiReply = aiReplyRaw.trim();
+        const aiReply = (aiReplyRaw || accumulatedReply || "").trim();
+        if (!aiReply) {
+          throw new Error("Empty AI response received");
+        }
+
+        // Finalize message with trimmed content
+        setChatMessages((prev) => {
+          const updated = [...prev];
+          if (updated.length > 0) {
+            updated[updated.length - 1] = {
+              ...updated[updated.length - 1],
+              text: aiReply,
+            };
+          }
+          return updated.filter((m) => m && m.text && m.text.trim().length > 0);
+        });
 
         if (interviewStage === "technical") {
           setTechnicalQuestionCount(prev => prev + 1);
@@ -1888,8 +1824,10 @@ In the meantime, if you have any follow-up questions, please don't hesitate to r
           })
           .catch((err) => console.error("Async feedback generation failed:", err));
       } catch (err) {
-        console.error("AI Error:", err);
-        setError("AI failed to respond.");
+        console.error("AI Error:", err.message);
+        setError("AI temporarily unavailable. Please try again.");
+        // Safely strip any empty/failed AI messages from history
+        setChatMessages((prev) => prev.filter((m) => m && m.text && m.text.trim().length > 0));
       } finally {
         setIsLoadingAI(false);
       }
@@ -1994,8 +1932,6 @@ In the meantime, if you have any follow-up questions, please don't hesitate to r
 
   // Set up socket listeners for the streaming pipeline
   useEffect(() => {
-    if (!socket.connected) return;
-
     const handleSttInterim = (text) => setInputValue(text);
 
     const handleSttFinal = (text) => {
@@ -2017,12 +1953,25 @@ In the meantime, if you have any follow-up questions, please don't hesitate to r
     };
 
     const handleLlmComplete = (fullText) => {
-      setChatMessages(prev => [...prev, {
-        sender: "AI",
-        text: fullText,
-        time: new Date().toLocaleTimeString(),
-        stage: interviewStage,
-      }]);
+      if (fullText && typeof fullText === "string" && fullText.trim()) {
+        setChatMessages(prev => {
+          const cleaned = prev.filter(m => m && m.text && m.text.trim().length > 0);
+          return [...cleaned, {
+            sender: "AI",
+            text: fullText.trim(),
+            time: new Date().toLocaleTimeString(),
+            stage: interviewStage,
+          }];
+        });
+      }
+    };
+
+    const handleLlmError = (err) => {
+      console.warn("Socket LLM error received:", err);
+      setIsLoadingAI(false);
+      setIsSpeaking(false);
+      setError("AI generation failed. Please try speaking again.");
+      setChatMessages(prev => prev.filter(m => m && m.text && m.text.trim().length > 0));
     };
 
     const handleTtsAudioChunk = (data) => {
@@ -2034,6 +1983,7 @@ In the meantime, if you have any follow-up questions, please don't hesitate to r
     socket.on("stt_final", handleSttFinal);
     socket.on("llm_token", handleLlmToken);
     socket.on("llm_complete", handleLlmComplete);
+    socket.on("llm_error", handleLlmError);
     socket.on("tts_audio_chunk", handleTtsAudioChunk);
 
     return () => {
@@ -2041,9 +1991,24 @@ In the meantime, if you have any follow-up questions, please don't hesitate to r
       socket.off("stt_final", handleSttFinal);
       socket.off("llm_token", handleLlmToken);
       socket.off("llm_complete", handleLlmComplete);
+      socket.off("llm_error", handleLlmError);
       socket.off("tts_audio_chunk", handleTtsAudioChunk);
     };
   }, [interviewStage, playTTSChunk, stopAudioStreaming]);
+
+  // Synchronize full interview context with backend VoicePipeline for voice/typed reasoning parity
+  useEffect(() => {
+    if (socket.connected && chatMessages.length > 0) {
+      const currentInstruction = getStageSystemInstruction(interviewStage, role, companyType);
+      socket.emit("set_interview_context", {
+        role,
+        companyType,
+        stage: interviewStage,
+        chatMessages,
+        systemInstruction: currentInstruction,
+      });
+    }
+  }, [chatMessages, interviewStage, role, companyType]);
 
   // --- END REAL-TIME STREAMING VOICE FUNCTIONS ---
 
@@ -2139,8 +2104,11 @@ In the meantime, if you have any follow-up questions, please don't hesitate to r
 
     const timeoutId = setTimeout(async () => {
       try {
+        const validMessages = chatMessages.filter(
+          (m) => m && typeof m.text === "string" && m.text.trim().length > 0
+        );
         await mainApi.patch(`/interview-session/complete/${sessionId}`, {
-          messages: chatMessages,
+          messages: validMessages,
           solvedProblems: solvedProblemsRef.current,
           highlightClips: Object.values(highlightBufferRef.current),
         });
@@ -2167,7 +2135,11 @@ In the meantime, if you have any follow-up questions, please don't hesitate to r
       recognitionRef.current = null;
     }
 
-    const reportText = generateReportContent(chatMessages, companyType, role);
+    const validMessages = chatMessages.filter(
+      (m) => m && typeof m.text === "string" && m.text.trim().length > 0
+    );
+
+    const reportText = generateReportContent(validMessages, companyType, role);
     const sanitizedRole = role.replace(/[^a-zA-Z0-9]/g, "_");
     const timestamp = new Date().toISOString().slice(0, 19).replace(/[:-]/g, "");
     const filename = `${sanitizedRole}_Report_${timestamp}.pdf`;
@@ -2199,7 +2171,7 @@ In the meantime, if you have any follow-up questions, please don't hesitate to r
           `/interview-session/complete/${sessionId}`,
           {
             reportUrl: data.publicUrl,
-            messages: chatMessages,
+            messages: validMessages,
             solvedProblems: solvedProblemsRef.current,
             highlightClips: Object.values(highlightBufferRef.current),
             status: "completed",
@@ -2404,11 +2376,22 @@ Key points:
           setChatMessages([firstMsg]);
           setCurrentQuestionIndex(1);
           setCurrentQuestionText(aiQ);
-          await textToSpeech(aiQ);
           setGreeted(true);
+          await textToSpeech(aiQ);
         } catch (error) {
           console.error("Error sending initial greeting:", error);
           setError(error.message || "Failed to start AI conversation");
+          const fallbackGreeting = `Hi! I'm Sira, your AI interviewer for the ${role} position at ${companyType}. Let's get started. Can you tell me about yourself and your professional background?`;
+          setChatMessages([{
+            sender: "AI",
+            text: fallbackGreeting,
+            time: new Date().toLocaleTimeString(),
+            stage: "intro",
+          }]);
+          setCurrentQuestionIndex(1);
+          setCurrentQuestionText(fallbackGreeting);
+          setGreeted(true);
+          textToSpeech(fallbackGreeting);
         } finally {
           setIsLoadingAI(false);
         }

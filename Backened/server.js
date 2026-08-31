@@ -497,6 +497,10 @@ const initializeSocketServer = () => {
       voicePipeline.processTTSRequest(text);
     });
 
+    socket.on("set_interview_context", (data) => {
+      voicePipeline.updateContext(data);
+    });
+
     socket.on("disconnect", () => {
       console.log("🔴 Socket disconnected:", socket.id);
       voicePipeline.cleanup();

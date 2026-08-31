@@ -2,7 +2,8 @@ import fetch from "node-fetch";
 
 // Deepgram requires API key for STT and TTS
 const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY || "";
-const FIREWORKS_API_KEY = "fw_7BzcUEoGttTnGfZhE6dQ96"; // Extracted from interviewController.js
+const FIREWORKS_API_KEY = process.env.FIREWORKS_API_KEY || "fw_7BzcUEoGttTnGfZhE6dQ96";
+const FIREWORKS_MODEL = process.env.FIREWORKS_MODEL || "accounts/fireworks/models/gpt-oss-120b";
 
 export class VoicePipeline {
   constructor(socket) {
@@ -11,6 +12,33 @@ export class VoicePipeline {
     this.isLLMGenerating = false;
     this.messageHistory = [];
     this.chunkQueue = [];
+    this.role = "Full Stack Developer";
+    this.companyType = "Tech Startup";
+    this.stage = "intro";
+    this.systemInstruction = "";
+  }
+
+  // Update interview context to ensure voice reasoning matches the typed interview pipeline
+  updateContext(data = {}) {
+    if (data.role) this.role = data.role;
+    if (data.companyType) this.companyType = data.companyType;
+    if (data.stage) this.stage = data.stage;
+    if (data.systemInstruction) this.systemInstruction = data.systemInstruction;
+    if (Array.isArray(data.chatMessages)) {
+      this.messageHistory = data.chatMessages
+        .filter((m) => m && m.text && typeof m.text === "string" && m.text.trim().length > 0)
+        .map((m) => ({
+          role: m.sender === "AI" ? "assistant" : "user",
+          content: m.text.trim(),
+        }));
+    } else if (Array.isArray(data.messages)) {
+      this.messageHistory = data.messages
+        .filter((m) => m && m.content && typeof m.content === "string" && m.content.trim().length > 0)
+        .map((m) => ({
+          role: m.role || "user",
+          content: m.content.trim(),
+        }));
+    }
   }
 
   // 1. Initialize Deepgram Streaming STT
@@ -96,31 +124,45 @@ export class VoicePipeline {
   // 3. Trigger LLM (Streaming)
   async triggerLLM(userText) {
     if (this.isLLMGenerating) return;
+    if (!userText || !userText.trim()) return;
     this.isLLMGenerating = true;
 
     // Reset and cleanup the Deepgram STT socket session, closing connection resources
     this.cleanup();
 
-    this.messageHistory.push({ role: "user", content: userText });
+    this.messageHistory.push({ role: "user", content: userText.trim() });
+
+    const systemPrompt = this.systemInstruction ||
+      `You are Sira, a professional AI interviewer conducting the ${this.stage.toUpperCase()} round for a ${this.role} position at ${this.companyType}. Evaluate the candidate's answer and ask an appropriate, concise follow-up question.`;
 
     const messages = [
-      { role: "system", content: "You are a professional interviewer. Keep your answers brief (1-3 sentences) and conversational." },
+      { role: "system", content: systemPrompt },
       ...this.messageHistory
     ];
 
     try {
+      const apiKey = process.env.FIREWORKS_API_KEY || FIREWORKS_API_KEY;
+      const model = process.env.FIREWORKS_MODEL || FIREWORKS_MODEL;
+
       const response = await fetch("https://api.fireworks.ai/inference/v1/chat/completions", {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${FIREWORKS_API_KEY}`,
+          "Authorization": `Bearer ${apiKey}`,
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          model: "accounts/fireworks/models/deepseek-v4-pro",
+          model,
           messages,
           stream: true
         })
       });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error(`Voice LLM Error HTTP ${response.status}:`, errText.slice(0, 100));
+        this.socket.emit("llm_error", { message: "AI response temporarily unavailable" });
+        return;
+      }
 
       let fullReply = "";
       let sentenceBuffer = "";
@@ -133,17 +175,19 @@ export class VoicePipeline {
           if (line.startsWith("data: ")) {
             try {
               const data = JSON.parse(line.slice(6));
-              const token = data.choices[0]?.delta?.content || "";
-              fullReply += token;
-              sentenceBuffer += token;
+              const token = data.choices?.[0]?.delta?.content || "";
+              if (token) {
+                fullReply += token;
+                sentenceBuffer += token;
 
-              // Emit tokens to frontend so UI can type them out instantly
-              this.socket.emit("llm_token", token);
+                // Emit tokens to frontend so UI can type them out instantly
+                this.socket.emit("llm_token", token);
 
-              // Basic sentence boundary detection to trigger TTS chunks
-              if (/[.!?]\s/.test(sentenceBuffer)) {
-                this.triggerTTS(sentenceBuffer.trim());
-                sentenceBuffer = "";
+                // Basic sentence boundary detection to trigger TTS chunks
+                if (/[.!?]\s/.test(sentenceBuffer)) {
+                  this.triggerTTS(sentenceBuffer.trim());
+                  sentenceBuffer = "";
+                }
               }
             } catch (e) {
               // Ignore parse errors on partial chunks
@@ -157,11 +201,17 @@ export class VoicePipeline {
         this.triggerTTS(sentenceBuffer.trim());
       }
 
-      this.messageHistory.push({ role: "assistant", content: fullReply });
-      this.socket.emit("llm_complete", fullReply);
+      if (fullReply.trim()) {
+        this.messageHistory.push({ role: "assistant", content: fullReply.trim() });
+        this.socket.emit("llm_complete", fullReply.trim());
+      } else {
+        console.warn("Voice LLM generated empty response");
+        this.socket.emit("llm_error", { message: "Empty AI response" });
+      }
 
     } catch (e) {
-      console.error("LLM Error:", e);
+      console.error("LLM Error:", e.message);
+      this.socket.emit("llm_error", { message: "Voice AI error" });
     } finally {
       this.isLLMGenerating = false;
     }

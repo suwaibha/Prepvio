@@ -8,6 +8,7 @@ import {
   getNextRound,
   completeRound,
   getInterviewQuestion,
+  handleInterviewChat,
   generateCodingProblem,
   getRandomCodingProblems,
   getUserCodingQuestions
@@ -22,6 +23,9 @@ router.post("/:sessionId/submit-intro", submitIntroduction);
 router.post("/:sessionId/select-rounds", submitRoundSelection);
 router.get("/:sessionId/next-round", getNextRound);
 router.post("/:sessionId/complete-round", completeRound);
+
+// AI Chat Proxy endpoint
+router.post("/chat", handleInterviewChat);
 
 // Existing endpoints
 router.post("/ask", getInterviewQuestion);

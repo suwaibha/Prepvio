@@ -53,7 +53,7 @@ MONGO_URI=mongodb://localhost:27017/PrepVioAdmin
 with
 
 ```js
-MONGO_URI=mongodb+srv://ameensyed244_db_user:MSc7gPV2IfSiHcvD@prepvio.lfpjat8.mongodb.net/PrepVioAdmin
+MONGO_URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/PrepVioAdmin
 ```
 
 ### 2. Backened/.env
@@ -67,7 +67,7 @@ MONGO_URI=mongodb://localhost:27017/Prepvio
 with
 
 ```js
-MONGO_URI=mongodb+srv://ameensyed244_db_user:MSc7gPV2IfSiHcvD@prepvio.lfpjat8.mongodb.net/Prepvio
+MONGO_URI=mongodb+srv://<username>:<password>@cluster.mongodb.net/Prepvio
 ```
 
 # Installation & Running

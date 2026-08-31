@@ -3,16 +3,10 @@ import "../env.js";
 
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 
-function maskKey(key) {
-  if (!key) return null;
-  if (key.length <= 8) return "****";
-  return `${key.slice(0, 4)}...${key.slice(-4)}`;
-}
-
 if (!GROQ_API_KEY) {
-  console.error("GROQ_API_KEY is not set in environment variables");
+  console.warn("GROQ_API_KEY configured: false");
 } else {
-  console.log(`GROQ_API_KEY loaded: ${maskKey(GROQ_API_KEY)}`);
+  console.log("GROQ_API_KEY configured: true");
 }
 
 const groq = new Groq({

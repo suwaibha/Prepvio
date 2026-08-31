@@ -293,7 +293,6 @@ export async function retryWithBackoff(fn, maxRetries = 5) {
           '[Quiz Pipeline] ❌ GROQ API key is invalid (401 Unauthorized).\n' +
           '  → Action required: update GROQ_API_KEY in Backened/.env\n' +
           `  → Key exists in env: ${Boolean(key)}\n` +
-          `  → Key prefix: ${key ? key.slice(0, 7) + '...' : 'N/A'}\n` +
           '  → Get a valid key at: https://console.groq.com'
         );
         throw error; // Do not retry — retrying with a bad key wastes time
@@ -538,14 +537,31 @@ export async function resumeUnfinishedQuizJobs() {
     // --- Pre-flight: validate GROQ_API_KEY before touching the DB ---
     const groqKey = process.env.GROQ_API_KEY;
     if (!groqKey) {
-      console.error(
+      console.warn(
         '[Quiz Pipeline] ⚠️  Skipping quiz resume: GROQ_API_KEY is not set.\n' +
         '  → Action required: add GROQ_API_KEY=<your_key> to Backened/.env\n' +
         '  → Get a key at: https://console.groq.com'
       );
       return;
     }
-    console.log(`[Quiz Pipeline] GROQ_API_KEY present (prefix: ${groqKey.slice(0, 7)}...)`);
+    console.log(`[Quiz Pipeline] GROQ_API_KEY configured: ${Boolean(groqKey)}`);
+
+    // Lightweight auth preflight to prevent background job floods on invalid key
+    try {
+      await groq.models.list();
+    } catch (authErr) {
+      if (
+        authErr.status === 401 ||
+        authErr?.error?.code === "invalid_api_key" ||
+        authErr?.message?.includes("invalid_api_key") ||
+        authErr?.message?.includes("Invalid API Key")
+      ) {
+        console.warn(
+          "[Quiz Pipeline] ⚠️  GROQ_API_KEY is invalid (401 Unauthorized). Skipping quiz background resume."
+        );
+        return;
+      }
+    }
 
     console.log("[Quiz Pipeline] Checking for unfinished quiz generation jobs...");
     const unfinishedQuizzes = await DbService.findUnfinishedQuizzes();

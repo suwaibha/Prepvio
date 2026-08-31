@@ -361,7 +361,15 @@ router.patch("/complete/:sessionId", verifyToken, async (req, res) => {
     }
 
     if (Array.isArray(messages)) {
-      session.messages = messages;
+      session.messages = messages
+        .filter((m) => m && typeof m.text === "string" && m.text.trim().length > 0 && (m.sender === "User" || m.sender === "AI"))
+        .map((m) => ({
+          sender: m.sender,
+          text: m.text.trim(),
+          time: m.time || new Date().toLocaleTimeString(),
+          stage: m.stage || "intro",
+          feedback: m.feedback || undefined,
+        }));
     }
 
     if (Array.isArray(solvedProblems)) {

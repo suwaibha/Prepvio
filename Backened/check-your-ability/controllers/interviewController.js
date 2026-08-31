@@ -1,4 +1,5 @@
 import axios from "axios";
+import fetch from "node-fetch";
 import dotenv from "dotenv";
 import { InterviewSession } from "../models/InterviewSession.js";
 import CodingProblem from "../../Models/CodingProblem.js";
@@ -6,8 +7,9 @@ import UserCodingQuestion from "../../Models/UserCodingQuestion.js";
 
 dotenv.config();
 
-const FIREWORKS_API_KEY = 'fw_7BzcUEoGttTnGfZhE6dQ96';
+const FIREWORKS_API_KEY = process.env.FIREWORKS_API_KEY || 'fw_7BzcUEoGttTnGfZhE6dQ96';
 const FIREWORKS_URL = "https://api.fireworks.ai/inference/v1/chat/completions";
+export const DEFAULT_FIREWORKS_MODEL = process.env.FIREWORKS_MODEL || "accounts/fireworks/models/gpt-oss-120b";
 
 // ✅ NEW: Define available interview rounds
 const AVAILABLE_ROUNDS = [
@@ -298,8 +300,8 @@ export const submitIntroduction = async (req, res) => {
     const { sessionId } = req.params;
     const { response } = req.body;
 
-    if (!sessionId || !response) {
-      return res.status(400).json({ message: "Session ID and response are required." });
+    if (!sessionId || !response || typeof response !== "string" || !response.trim()) {
+      return res.status(400).json({ message: "Session ID and valid response are required." });
     }
 
     const session = await InterviewSession.findById(sessionId);
@@ -310,7 +312,7 @@ export const submitIntroduction = async (req, res) => {
     // Store introduction message
     session.messages.push({
       sender: "User",
-      text: response,
+      text: response.trim(),
       time: new Date().toLocaleTimeString(),
       stage: "INTRODUCTION",
     });
@@ -345,32 +347,122 @@ Ask one question at a time. No explanations. Start with intro → technical.
 
     const messages = [
       { role: "system", content: systemPrompt },
-      ...chatHistory.map(msg => ({
-        role: msg.role === "ai" ? "assistant" : "user",
-        content: msg.text,
-      }))
+      ...chatHistory
+        .filter(msg => msg && msg.text && msg.text.trim())
+        .map(msg => ({
+          role: msg.role === "ai" || msg.sender === "AI" ? "assistant" : "user",
+          content: msg.text.trim(),
+        }))
     ];
+
+    const model = process.env.FIREWORKS_MODEL || DEFAULT_FIREWORKS_MODEL;
+    const apiKey = process.env.FIREWORKS_API_KEY || FIREWORKS_API_KEY;
 
     const response = await axios.post(
       FIREWORKS_URL,
       {
-        model: "accounts/fireworks/models/deepseek-v4-pro",
+        model,
         messages
       },
       {
         headers: {
-          Authorization: `Bearer ${FIREWORKS_API_KEY}`,
+          Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json"
         }
       }
     );
 
     const text = response.data?.choices?.[0]?.message?.content || "";
-    res.json({ text });
+    if (!text.trim()) {
+      return res.status(502).json({ message: "Empty AI response generated" });
+    }
+    res.json({ text: text.trim() });
 
   } catch (err) {
-    console.error("Interview Question Error:", err);
+    console.error("Interview Question Error:", err.message);
     res.status(500).json({ message: "Failed to generate question" });
+  }
+};
+
+/* ==========================================================
+   🔹 SECURE FIREWORKS INTERVIEW CHAT & STREAMING PROXY
+========================================================== */
+export const handleInterviewChat = async (req, res) => {
+  try {
+    const { messages, stream = false } = req.body;
+
+    if (!messages || !Array.isArray(messages)) {
+      return res.status(400).json({ message: "Messages array is required." });
+    }
+
+    const apiKey = process.env.FIREWORKS_API_KEY || FIREWORKS_API_KEY;
+    const model = process.env.FIREWORKS_MODEL || DEFAULT_FIREWORKS_MODEL;
+
+    if (stream) {
+      const response = await fetch(FIREWORKS_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          Accept: "text/event-stream"
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          stream: true
+        })
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error(`Fireworks Stream Error HTTP ${response.status}:`, errText.slice(0, 120));
+        return res.status(response.status).json({
+          message: "Interview AI service error",
+          code: response.status === 404 ? "MODEL_UNAVAILABLE" : "AI_ERROR"
+        });
+      }
+
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+
+      for await (const chunk of response.body) {
+        res.write(chunk);
+      }
+      res.end();
+    } else {
+      const response = await fetch(FIREWORKS_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          stream: false
+        })
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error(`Fireworks JSON Error HTTP ${response.status}:`, errText.slice(0, 120));
+        return res.status(response.status).json({
+          message: "Interview AI service error",
+          code: response.status === 404 ? "MODEL_UNAVAILABLE" : "AI_ERROR"
+        });
+      }
+
+      const data = await response.json();
+      res.json(data);
+    }
+  } catch (err) {
+    console.error("Interview Chat Proxy Error:", err.message);
+    if (!res.headersSent) {
+      res.status(500).json({ message: "Failed to process interview chat" });
+    } else {
+      res.end();
+    }
   }
 };
 
@@ -433,11 +525,14 @@ Expected JSON format:
 RETURN ONLY JSON.
 `;
 
+    const model = process.env.FIREWORKS_MODEL || DEFAULT_FIREWORKS_MODEL;
+    const apiKey = process.env.FIREWORKS_API_KEY || FIREWORKS_API_KEY;
+
     // Call Fireworks
     const response = await axios.post(
       FIREWORKS_URL,
       {
-        model: "accounts/fireworks/models/deepseek-v4-pro",
+        model,
         messages: [
           {
             role: "system",
@@ -449,7 +544,7 @@ RETURN ONLY JSON.
       },
       {
         headers: {
-          Authorization: `Bearer ${FIREWORKS_API_KEY}`,
+          Authorization: `Bearer ${apiKey}`,
           "Content-Type": "application/json"
         }
       }
@@ -601,6 +696,7 @@ export default {
   getNextRound,
   completeRound,
   getInterviewQuestion,
+  handleInterviewChat,
   generateCodingProblem,
   getRandomCodingProblems,
   getUserCodingQuestions,

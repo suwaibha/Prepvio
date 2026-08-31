@@ -2,7 +2,7 @@ import fetch from "node-fetch";
 
 // Deepgram requires API key for STT and TTS
 const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY || "";
-const FIREWORKS_API_KEY = "fw_WCaHPr9NCSBAdy6Z8UX3Db"; // Extracted from interviewController.js
+const FIREWORKS_API_KEY = "fw_7BzcUEoGttTnGfZhE6dQ96"; // Extracted from interviewController.js
 
 export class VoicePipeline {
   constructor(socket) {

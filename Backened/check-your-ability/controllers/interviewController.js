@@ -6,7 +6,7 @@ import UserCodingQuestion from "../../Models/UserCodingQuestion.js";
 
 dotenv.config();
 
-const FIREWORKS_API_KEY = 'fw_WCaHPr9NCSBAdy6Z8UX3Db';
+const FIREWORKS_API_KEY = 'fw_7BzcUEoGttTnGfZhE6dQ96';
 const FIREWORKS_URL = "https://api.fireworks.ai/inference/v1/chat/completions";
 
 // ✅ NEW: Define available interview rounds

@@ -92,8 +92,8 @@ router.post("/analyze", verifyToken, async (req, res) => {
 });
 
 /**
- * 4-POSE LIVENESS ENROLLMENT:
- * Takes the 4 captured frames (Front, Right, Left, Up), validates liveness match,
+ * 3-POSE LIVENESS ENROLLMENT:
+ * Takes the 3 captured frames (Front, Right, Left), validates liveness match,
  * and saves the candidate's reference face profile.
  */
 router.post("/enroll", verifyToken, async (req, res) => {
@@ -102,10 +102,10 @@ router.post("/enroll", verifyToken, async (req, res) => {
     const { captures, frames } = req.body;
     const frameList = frames || (Array.isArray(captures) ? captures.map((c) => c.frame) : []);
 
-    if (!Array.isArray(frameList) || frameList.length < 4) {
+    if (!Array.isArray(frameList) || frameList.length < 3) {
       return res.status(400).json({
         verified: false,
-        message: "All 4 pose views (Front, Right, Left, Up) are required for enrollment.",
+        message: "Front, Right, and Left pose views are required for enrollment.",
       });
     }
 

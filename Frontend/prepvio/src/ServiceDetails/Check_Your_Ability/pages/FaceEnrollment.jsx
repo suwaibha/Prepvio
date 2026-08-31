@@ -6,7 +6,6 @@ import {
   AlertCircle,
   ArrowRight,
   ArrowLeft,
-  ArrowUp,
   User,
   RotateCcw,
   Check,
@@ -16,12 +15,11 @@ import {
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuthStore } from "../../../store/authstore";
 
-// 4 Sequential automatic capture steps
+// 3 Sequential automatic capture steps
 const POSES = [
   { id: "front", label: "Front", instruction: "Look straight at the camera", icon: User },
   { id: "right", label: "Right", instruction: "Turn your head slightly to the RIGHT", icon: ArrowRight },
   { id: "left", label: "Left", instruction: "Turn your head slightly to the LEFT", icon: ArrowLeft },
-  { id: "up", label: "Up", instruction: "Look slightly UP", icon: ArrowUp },
 ];
 
 const CALIBRATION_FRAMES_REQUIRED = 12;
@@ -154,7 +152,7 @@ const FaceEnrollment = () => {
   }, [location.state, navigate]);
 
   /**
-   * Submits all 4 captured poses to /api/face/enroll
+   * Submits all 3 captured poses to /api/face/enroll
    */
   const enrollAllViews = useCallback(
     async (framesMap) => {
@@ -167,7 +165,7 @@ const FaceEnrollment = () => {
         const res = await mainApi.post("/face/enroll", { frames: frameList });
 
         if (res.data?.verified) {
-          console.log("[FACE] All 4 views enrolled. Transitioning to continuous live verification.");
+          console.log("[FACE] All 3 views enrolled. Transitioning to continuous live verification.");
           stageRef.current = "LIVE_VERIFYING";
           setStage("LIVE_VERIFYING");
           setLiveFeedback("Checking...");
@@ -295,7 +293,7 @@ const FaceEnrollment = () => {
             }
 
             // -------------------------------------------------------------
-            // PHASE 1: AUTOMATIC 4-POSE CAPTURE
+            // PHASE 1: AUTOMATIC 3-POSE CAPTURE
             // -------------------------------------------------------------
             if (currentStage === "CAPTURING_POSES") {
               if (!targetPose || isCapturedStepRef.current) return;
@@ -568,11 +566,6 @@ const FaceEnrollment = () => {
                   <ArrowLeft size={16} /> Turn Left 45°
                 </div>
               )}
-              {stage === "CAPTURING_POSES" && activePoseObj.id === "up" && (
-                <div className="absolute top-6 flex items-center gap-1.5 text-white bg-black/80 px-3.5 py-1.5 rounded-full text-xs font-bold animate-pulse">
-                  <ArrowUp size={16} /> Look Slightly Up
-                </div>
-              )}
               {stage === "CAPTURING_POSES" && activePoseObj.id === "front" && (
                 <div className="text-white/80 text-xs font-medium tracking-wide">Look Straight Here</div>
               )}
@@ -609,7 +602,7 @@ const FaceEnrollment = () => {
             {stage === "CAPTURING_POSES" && (
               <>
                 <p className="text-xs font-bold uppercase tracking-widest text-gray-400">
-                  Step {currentStep + 1} of 4: {activePoseObj.label}
+                  Step {currentStep + 1} of {POSES.length}: {activePoseObj.label}
                 </p>
                 <h2 className="mt-1 text-xl md:text-2xl font-black text-gray-900">
                   {stepSuccessMsg || activePoseObj.instruction}
@@ -644,7 +637,7 @@ const FaceEnrollment = () => {
           </div>
 
           {/* Captured Thumbnails Gallery */}
-          <div className="mt-5 grid grid-cols-4 gap-2.5">
+          <div className="mt-5 grid grid-cols-3 gap-2.5">
             {POSES.map((pose) => {
               const thumb = capturedThumbnails[pose.id];
               return (

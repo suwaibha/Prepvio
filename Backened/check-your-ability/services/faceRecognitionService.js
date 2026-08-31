@@ -325,14 +325,14 @@ export const faceDistance = (first, second) =>
   Math.sqrt(first.reduce((sum, value, index) => sum + (value - second[index]) ** 2, 0));
 
 /**
- * Cross-pose verification to ensure all 4 frames belong to the same candidate
+ * Cross-pose verification to ensure all 3 frames belong to the same candidate
  */
 export const isLivenessMatch = async (frames) => {
-  if (!Array.isArray(frames) || frames.length < 4) {
+  if (!Array.isArray(frames) || frames.length < 3) {
     return {
       match: false,
       confidence: 0,
-      reason: "All 4 pose views (Front, Right, Left, Up) are required for enrollment.",
+      reason: "Front, Right, and Left pose views are required for enrollment.",
     };
   }
 

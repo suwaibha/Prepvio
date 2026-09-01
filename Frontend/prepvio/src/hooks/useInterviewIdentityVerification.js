@@ -55,7 +55,16 @@ export const useInterviewIdentityVerification = ({
 
     const now = Date.now();
     const video = videoRef.current;
-    const track = video?.srcObject?.getVideoTracks?.()[0];
+
+    // ── GUARD: srcObject not yet attached → camera is still initializing, skip silently ──
+    // This prevents false "Camera Disconnected" warnings during the startup window
+    // before getUserMedia attaches the stream to the video element.
+    if (!video?.srcObject) {
+      console.debug("[IDV] srcObject not ready yet — skipping check");
+      return;
+    }
+
+    const track = video.srcObject.getVideoTracks?.()[0];
     // track.readyState === "live" is the reliable check for an active camera stream
     const isCameraLive = track && track.enabled && track.readyState === "live";
     console.debug("[IDV] track:", track?.readyState, "| isCameraLive:", isCameraLive, "| video.paused:", video?.paused);

@@ -135,7 +135,7 @@ useEffect(() => {
       console.error("❌ Error response:", error.response?.data);
       console.error("❌ Error status:", error.response?.status);
 
-      // ✅ Handle camera/microphone permission denial
+      // ✅ Handle camera/microphone permission denial & hardware errors
       if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
         setCameraError({
           title: "Camera/Microphone Access Required",
@@ -145,6 +145,44 @@ useEffect(() => {
             "Select 'Allow' for camera and microphone",
             "Click the button below to grant permission",
             "Reload the page if needed"
+          ]
+        });
+        return;
+      }
+
+      if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+        setCameraError({
+          title: "Camera Hardware / Device In Use",
+          message: "Your camera or microphone is currently in use by another application or system process.",
+          instructions: [
+            "Close other apps using the camera (Zoom, Teams, Skype, Lenovo Vantage, etc.)",
+            "Close other browser windows/tabs that may be using the camera",
+            "Refresh the page and try again"
+          ]
+        });
+        return;
+      }
+
+      if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+        setCameraError({
+          title: "Camera/Microphone Not Found",
+          message: "No camera or microphone hardware was detected on your device.",
+          instructions: [
+            "Ensure your camera and microphone are plugged in and enabled",
+            "Check your device manager or system privacy settings",
+            "Refresh the page once connected"
+          ]
+        });
+        return;
+      }
+
+      if (error.name === 'OverconstrainedError') {
+        setCameraError({
+          title: "Camera Constraints Error",
+          message: "Your camera hardware could not satisfy the requested video resolution.",
+          instructions: [
+            "Check your camera device settings",
+            "Refresh the page and try again"
           ]
         });
         return;
@@ -196,7 +234,7 @@ useEffect(() => {
       } else {
         setCameraError({
           title: "Unexpected Error",
-          message: "An unexpected error occurred.",
+          message: error.message || "An unexpected error occurred.",
           instructions: ["Please refresh the page and try again."]
         });
       }

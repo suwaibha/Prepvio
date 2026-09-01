@@ -1117,6 +1117,15 @@ const InterviewScreen = ({
   const companyType = location.state?.companyType || propCompanyType || "Tech Startup";
   const role = location.state?.role || propRole || "Full Stack Developer";
   const userVideoRef = useRef(null);
+  const setVideoRef = useCallback((node) => {
+    userVideoRef.current = node;
+    if (node && window.currentMediaStream) {
+      if (node.srcObject !== window.currentMediaStream) {
+        node.srcObject = window.currentMediaStream;
+      }
+      node.play().catch(() => {});
+    }
+  }, []);
   const screenRef = useRef(null);
   const chatEndRef = useRef(null);
   const recognitionRef = useRef(null);
@@ -1322,11 +1331,17 @@ const InterviewScreen = ({
 
 
 
+  const endInterviewRef = useRef(endInterview);
+  useEffect(() => { endInterviewRef.current = endInterview; }, [endInterview]);
+
+  // Cleanup on unmount only — [] ensures this never re-runs during the interview.
+  // Previously used [endInterview] which caused the cleanup to fire on every
+  // re-render, stopping camera tracks and killing the video stream mid-session.
   useEffect(() => {
     return () => {
-      endInterview();
+      endInterviewRef.current();
     };
-  }, [endInterview]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -2252,13 +2267,15 @@ Keep it concise and actionable.`;
   const { verifyIdentity } = identityVerification;
 
   useEffect(() => {
-    if (cameraAllowed && !isPreview && typeof verifyIdentity === "function") {
-      verifyIdentity("round_start");
-    }
+    if (!cameraAllowed || isPreview || typeof verifyIdentity !== "function") return;
+    const t = setTimeout(() => verifyIdentity(), 1500);
+    return () => clearTimeout(t);
   }, [cameraAllowed, interviewStage, isPreview, verifyIdentity]);
 
   useEffect(() => {
     if (isPreview) return;
+
+    let cancelled = false;
 
     const startCamera = async () => {
       try {
@@ -2272,39 +2289,23 @@ Keep it concise and actionable.`;
           audio: true,
         });
 
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+
         window.currentMediaStream = stream;
 
         const videoEl = userVideoRef.current;
         if (videoEl) {
           videoEl.srcObject = stream;
-
-          // For live MediaStream, 'loadeddata' is unreliable in Chrome.
-          // Use the 'playing' event with a timeout fallback instead.
-          await new Promise((resolve) => {
-            if (!videoEl.paused) {
-              resolve(); // already playing
-              return;
-            }
-            const onPlaying = () => resolve();
-            videoEl.addEventListener("playing", onPlaying, { once: true });
-            // 3-second fallback in case 'playing' doesn't fire
-            const fallback = setTimeout(() => {
-              videoEl.removeEventListener("playing", onPlaying);
-              resolve();
-            }, 3000);
-            // Kick off playback
-            videoEl.play().catch(() => {
-              clearTimeout(fallback);
-              videoEl.removeEventListener("playing", onPlaying);
-              resolve(); // non-fatal, resolve anyway
-            });
-          });
-
+          videoEl.play().catch(() => {}); // autoPlay handles it; .play() is just a nudge
           const settings = stream.getVideoTracks()[0]?.getSettings() || {};
-          console.log("📹 Video initialized:", `${settings.width}x${settings.height} @ ${settings.frameRate}fps`);
+          console.log("📹 Camera stream attached:", `${settings.width}x${settings.height} @ ${settings.frameRate}fps`);
+        } else {
+          console.error("❌ userVideoRef.current is null — video element was not found in DOM!");
         }
 
-        // Mark camera as allowed only after video is live
         setCameraAllowed(true);
       } catch (err) {
         console.error("Camera/Mic error:", err);
@@ -2313,6 +2314,7 @@ Keep it concise and actionable.`;
     };
 
     startCamera();
+    return () => { cancelled = true; };
   }, [isPreview]);
 
   useEffect(() => {
@@ -2502,16 +2504,13 @@ Key points:
                 </div>
               ) : (
                 <video
-                  ref={userVideoRef}
+                  ref={setVideoRef}
                   autoPlay
                   playsInline
                   muted
                   className="w-full h-[480px] object-cover"
                   style={{
-                    transform: 'scaleX(-1) translateZ(0)',
-                    backfaceVisibility: 'hidden',
-                    WebkitBackfaceVisibility: 'hidden',
-                    imageRendering: 'auto',
+                    transform: 'scaleX(-1)',
                   }}
                 />
               )}

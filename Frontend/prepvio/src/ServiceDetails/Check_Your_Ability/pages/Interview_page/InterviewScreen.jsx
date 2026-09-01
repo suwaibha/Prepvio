@@ -2264,7 +2264,6 @@ Keep it concise and actionable.`;
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
-            // ✅ Balanced resolution - good quality without overloading GPU
             width: { ideal: 480 },
             height: { ideal: 360 },
             frameRate: { ideal: 30, max: 30 },
@@ -2275,13 +2274,40 @@ Keep it concise and actionable.`;
 
         window.currentMediaStream = stream;
 
-        if (userVideoRef.current) {
-          userVideoRef.current.srcObject = stream;
-          const settings = stream.getVideoTracks()[0].getSettings();
+        const videoEl = userVideoRef.current;
+        if (videoEl) {
+          videoEl.srcObject = stream;
+
+          // For live MediaStream, 'loadeddata' is unreliable in Chrome.
+          // Use the 'playing' event with a timeout fallback instead.
+          await new Promise((resolve) => {
+            if (!videoEl.paused) {
+              resolve(); // already playing
+              return;
+            }
+            const onPlaying = () => resolve();
+            videoEl.addEventListener("playing", onPlaying, { once: true });
+            // 3-second fallback in case 'playing' doesn't fire
+            const fallback = setTimeout(() => {
+              videoEl.removeEventListener("playing", onPlaying);
+              resolve();
+            }, 3000);
+            // Kick off playback
+            videoEl.play().catch(() => {
+              clearTimeout(fallback);
+              videoEl.removeEventListener("playing", onPlaying);
+              resolve(); // non-fatal, resolve anyway
+            });
+          });
+
+          const settings = stream.getVideoTracks()[0]?.getSettings() || {};
           console.log("📹 Video initialized:", `${settings.width}x${settings.height} @ ${settings.frameRate}fps`);
         }
+
+        // Mark camera as allowed only after video is live
         setCameraAllowed(true);
       } catch (err) {
+        console.error("Camera/Mic error:", err);
         setError("Camera/Mic access denied.");
       }
     };

@@ -16,6 +16,10 @@ const frameFromVideo = (video) => {
   return canvas.toDataURL("image/jpeg", 0.75);
 };
 
+const STARTUP_GRACE_MS = 3000;      // Delay before first verification to let camera stream fully start
+const FAILURE_THRESHOLD_MS = 2200; // Continuous failure duration required before warning strike
+const GRACE_PERIOD_MS = 10000;     // 10-second post-warning cooldown/grace period
+
 export const useInterviewIdentityVerification = ({
   videoRef,
   sessionId,
@@ -36,9 +40,6 @@ export const useInterviewIdentityVerification = ({
     terminationReason: "",
   });
 
-  const FAILURE_THRESHOLD_MS = 2200; // Continuous failure duration required before warning strike
-  const GRACE_PERIOD_MS = 10000;     // 10-second post-warning cooldown/grace period
-
   const verifyingRef = useRef(false);
   const warningCountRef = useRef(0);
   const violationStartTimeRef = useRef(null);
@@ -55,7 +56,9 @@ export const useInterviewIdentityVerification = ({
     const now = Date.now();
     const video = videoRef.current;
     const track = video?.srcObject?.getVideoTracks?.()[0];
+    // track.readyState === "live" is the reliable check for an active camera stream
     const isCameraLive = track && track.enabled && track.readyState === "live";
+    console.debug("[IDV] track:", track?.readyState, "| isCameraLive:", isCameraLive, "| video.paused:", video?.paused);
 
     // 1. Check Camera Hardware Disconnection
     if (!isCameraLive) {
@@ -258,14 +261,18 @@ export const useInterviewIdentityVerification = ({
   useEffect(() => {
     if (!enabled || verificationState.terminated) return undefined;
 
-    // Initial check on load
-    performVerification();
+    // Delay the first check to allow the camera stream to fully attach
+    // to the <video> element (avoids false "Camera Disconnected" on startup)
+    const startupTimer = window.setTimeout(() => {
+      performVerification();
+    }, STARTUP_GRACE_MS);
 
     const intervalId = window.setInterval(() => {
       performVerification();
     }, 2500);
 
     return () => {
+      window.clearTimeout(startupTimer);
       window.clearInterval(intervalId);
     };
   }, [enabled, performVerification, verificationState.terminated]);
